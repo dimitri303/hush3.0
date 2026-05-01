@@ -16,6 +16,17 @@ export function createLensPass(deps) {
   } = deps;
 
   let lastGrainUpdate = 0;
+  const grainImageData = ngx.createImageData(256, 256);
+  let grainPattern = null;
+  const scanTileCanvas = document.createElement('canvas');
+  scanTileCanvas.width = 1;
+  scanTileCanvas.height = 6;
+  const stx = scanTileCanvas.getContext('2d');
+  stx.fillStyle = 'rgba(255,255,255,0.18)';
+  stx.fillRect(0, 0, 1, 1);
+  stx.fillStyle = 'rgba(0,0,0,0.20)';
+  stx.fillRect(0, 3, 1, 1);
+  let scanPattern = null;
 
   function clearLensCanvas() {
     configurePassCanvas(lensCanvas);
@@ -25,19 +36,19 @@ export function createLensPass(deps) {
   }
 
   function regenerateGrainTile() {
-    const img = ngx.createImageData(256, 256);
-    const d = img.data;
+    const d = grainImageData.data;
     for (let i = 0; i < d.length; i += 4) {
       const v = 118 + Math.random() * 38;
       d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = 255;
     }
-    ngx.putImageData(img, 0, 0);
+    ngx.putImageData(grainImageData, 0, 0);
   }
 
   function maybeUpdateGrain() {
     if (!gfx.grain) return;
     const now = performance.now();
-    if (now - lastGrainUpdate > 83) {
+    const interval = gfx.qualityMode === '720p' ? 140 : gfx.qualityMode === '900p' ? 105 : 83;
+    if (now - lastGrainUpdate > interval) {
       regenerateGrainTile();
       lastGrainUpdate = now;
     }
@@ -49,9 +60,9 @@ export function createLensPass(deps) {
     lnx.save();
     lnx.globalCompositeOperation = 'overlay';
     lnx.globalAlpha = gfx.grainStrength;
-    const pattern = lnx.createPattern(grainTileCanvas, 'repeat');
-    if (pattern) {
-      lnx.fillStyle = pattern;
+    grainPattern ||= lnx.createPattern(grainTileCanvas, 'repeat');
+    if (grainPattern) {
+      lnx.fillStyle = grainPattern;
       const ox = Math.floor((state.t * 17) % 256);
       const oy = Math.floor((state.t * 11) % 256);
       lnx.translate(-ox, -oy);
@@ -81,10 +92,11 @@ export function createLensPass(deps) {
   function drawLensHalation() {
     if (!gfx.halation || gfx.halationStrength <= 0) return;
     if (typeof glowCanvas === 'undefined') return;
+    const qMul = gfx.qualityMode === '720p' ? 0.65 : gfx.qualityMode === '900p' ? 0.8 : 1;
     lnx.save();
     lnx.globalCompositeOperation = 'screen';
-    lnx.globalAlpha = gfx.halationStrength * 0.5;
-    lnx.filter = `blur(${scaledPx(gfx.halationBlur).toFixed(1)}px)`;
+    lnx.globalAlpha = gfx.halationStrength * 0.5 * qMul;
+    lnx.filter = `blur(${scaledPx(gfx.halationBlur * qMul).toFixed(1)}px)`;
     lnx.drawImage(glowCanvas, 0, 0, RW, RH);
     lnx.globalCompositeOperation = 'source-atop';
     lnx.filter = 'none';
@@ -98,9 +110,10 @@ export function createLensPass(deps) {
     lnx.save();
     lnx.globalCompositeOperation = 'overlay';
     lnx.globalAlpha = gfx.scanTextureStrength;
-    for (let y = 0; y < RH; y += 3) {
-      lnx.fillStyle = y % 6 === 0 ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.20)';
-      lnx.fillRect(0, y, RW, 1);
+    scanPattern ||= lnx.createPattern(scanTileCanvas, 'repeat');
+    if (scanPattern) {
+      lnx.fillStyle = scanPattern;
+      lnx.fillRect(0, 0, RW, RH);
     }
     lnx.restore();
   }

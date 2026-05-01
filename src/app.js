@@ -201,6 +201,7 @@ let highFpsStreak = 0;
 let adaptiveCooldown = 0;
 let heavyPassTimer = 0;
 let lensPassTimer = 0;
+let contactPassTimer = 0;
 let lastClockMinute = -1;
 let lastTimeModeLabel = '';
 let lastTimeChip = '';
@@ -1786,11 +1787,11 @@ function applyAdaptiveQuality(dt) {
 }
 
 function getAdaptiveIntervals() {
-  if (!gfx.adaptiveQuality) return { heavy: 1 / 30, lens: 1 / 20 };
-  if (avgFrameMs > 30) return { heavy: 1 / 12, lens: 1 / 10 };
-  if (avgFrameMs > 24) return { heavy: 1 / 18, lens: 1 / 14 };
-  if (avgFrameMs > 18) return { heavy: 1 / 24, lens: 1 / 18 };
-  return { heavy: 1 / 30, lens: 1 / 20 };
+  if (!gfx.adaptiveQuality) return { contact: 1 / 30, heavy: 1 / 30, lens: 1 / 20 };
+  if (avgFrameMs > 30) return { contact: 1 / 14, heavy: 1 / 12, lens: 1 / 10 };
+  if (avgFrameMs > 24) return { contact: 1 / 20, heavy: 1 / 18, lens: 1 / 14 };
+  if (avgFrameMs > 18) return { contact: 1 / 24, heavy: 1 / 24, lens: 1 / 18 };
+  return { contact: 1 / 30, heavy: 1 / 30, lens: 1 / 20 };
 }
 
 function getDebugRect(name) {
@@ -2758,10 +2759,13 @@ function render(ts) {
   updateMicroMotion(dt);
   applyAdaptiveQuality(dt);
   const passIntervals = getAdaptiveIntervals();
+  contactPassTimer += dt;
   heavyPassTimer += dt;
   lensPassTimer += dt;
+  const updateContactPass = contactPassTimer >= passIntervals.contact;
   const updateHeavyPasses = heavyPassTimer >= passIntervals.heavy;
   const updateLensPass = lensPassTimer >= passIntervals.lens;
+  if (updateContactPass) contactPassTimer = 0;
   if (updateHeavyPasses) heavyPassTimer = 0;
   if (updateLensPass) lensPassTimer = 0;
 
@@ -2788,7 +2792,7 @@ function render(ts) {
   resetCtx(); drawCinematicGradePass();
 
   // Contact shadow pass
-  renderContactShadowPass();
+  if (updateContactPass) renderContactShadowPass();
   if (gfx.contactPreview && gfx.debug) {
     cx.save();
     resetLogicalTransform();

@@ -7,6 +7,7 @@ import { createBloomPass } from './render/passes/bloom.js';
 import { createAtmospherePass } from './render/passes/atmosphere.js';
 import { createLightWrapPass } from './render/passes/light-wrap.js';
 import { createMaterialPass } from './render/passes/material.js';
+import { createColourGradePass } from './render/passes/colour-grade.js';
 
 const VERSION = 'A2.3-CINEMATIC-VISUAL-PASS';
 const BUILD_STAMP = 'A2.3-CINEMATIC-VISUAL-PASS | 2026-04-28 19:27:56 UTC';
@@ -1407,6 +1408,17 @@ function drawCityLayer(x, y, w, h, offset, heightScale, hMult, alpha, col) {
 }
 
 
+// ── MICRO-MOTION SYSTEM ───────────────────────────────
+// "Ambient life, not animation." All values stay close to 1 — multiplicative modifiers only.
+const micro = {
+  lampWarmth: 1, tvPulse: 1, neonPulse: 1, holoPulseMul: 1,
+  hazeDriftX: 0, hazeDriftY: 0,
+  reflectionShimmer: 1, materialShimmer: 1,
+  lastRandomFlicker: 0, randomTvFlicker: 1, randomLampFlicker: 1
+};
+
+function microEnabled() { return gfx.microMotion && gfx.microMotionStrength > 0; }
+
 // ── BLOOM + ATMOSPHERE PASSES ─────────────────────────
 const { renderBloomPass, compositeBloom } = createBloomPass({
   gfx,
@@ -1468,167 +1480,20 @@ const { renderMaterialPass, compositeMaterialResponse } = createMaterialPass({
   micro
 });
 
-// ── COLOUR GRADE PASS ─────────────────────────────────
-// "Final grade, not a special effect."
-// Grade functions accept a context so they can draw to grx (preview)
-// or cx (direct composite). Direct composite is used for final output
-// so blend modes resolve correctly against the actual scene.
-
-function clearGradeCanvas() {
-  configurePassCanvas(gradeCanvas);
-  grx.setTransform(1, 0, 0, 1, 0, 0);
-  grx.clearRect(0, 0, gradeCanvas.width, gradeCanvas.height);
-  resetPassContext(grx);
-}
-
-function drawGradeFullGradient(ctx, stops, blend, alpha) {
-  ctx.save();
-  ctx.globalCompositeOperation = blend;
-  ctx.globalAlpha = alpha;
-  const g = ctx.createLinearGradient(0, 0, 0, RH);
-  stops.forEach(([p, c]) => g.addColorStop(p, c));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, RW, RH);
-  ctx.restore();
-}
-
-function drawGradeRadial(ctx, x, y, r0, r1, stops, blend, alpha) {
-  ctx.save();
-  ctx.globalCompositeOperation = blend;
-  ctx.globalAlpha = alpha;
-  const g = ctx.createRadialGradient(x, y, r0, x, y, r1);
-  stops.forEach(([p, c]) => g.addColorStop(p, c));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, RW, RH);
-  ctx.restore();
-}
-
-function drawGradeShadowTint(ctx) {
-  if (gfx.shadowTintStrength <= 0) return;
-  const tp = timeProfile();
-  const nightMul = 0.75 + tp.night * 0.45;
-  const s = gfx.gradeStrength * gfx.shadowTintStrength * nightMul;
-  // Purple shadow bias in lower and edge areas
-  drawGradeFullGradient(ctx, [
-    [0.00, 'rgba(60,35,95,0)'],
-    [0.35, `rgba(48,28,78,${0.07 * s})`],
-    [0.72, `rgba(38,20,65,${0.15 * s})`],
-    [1.00, `rgba(18,8,32,${0.18 * s})`]
-  ], 'multiply', 1);
-  // Very restrained magenta presence in midtones
-  drawGradeRadial(ctx, RW * 0.48, RH * 0.58, RW * 0.10, RW * 0.70, [
-    [0.00, `rgba(120,45,160,${0.035 * s})`],
-    [0.55, `rgba(80,20,120,${0.022 * s})`],
-    [1.00, 'rgba(80,20,120,0)']
-  ], 'screen', 1);
-}
-
-function drawGradeWarmMidtones(ctx) {
-  if (gfx.warmMidStrength <= 0) return;
-  const tp = timeProfile();
-  const sunsetWarm = 0.8 + tp.sunset * 0.45;
-  const s = gfx.gradeStrength * gfx.warmMidStrength * sunsetWarm;
-  ctx.save(); ctx.globalCompositeOperation = 'screen';
-  // Warm pool near lamp/table area
-  drawGradeRadial(ctx, RW * 0.44, RH * 0.70, 0, RW * 0.46, [
-    [0.00, `rgba(255,160,80,${0.10 * s})`],
-    [0.42, `rgba(255,120,60,${0.042 * s})`],
-    [1.00, 'rgba(255,120,60,0)']
-  ], 'screen', 1);
-  // Very faint amber lift across lower third — balances the purple
-  const g = ctx.createLinearGradient(0, RH * 0.55, 0, RH);
-  g.addColorStop(0,    'rgba(255,180,100,0)');
-  g.addColorStop(0.55, `rgba(255,160,90,${0.026 * s})`);
-  g.addColorStop(1,    `rgba(255,130,70,${0.018 * s})`);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, RH * 0.52, RW, RH * 0.48);
-  ctx.restore();
-}
-
-function drawGradeCyanLift(ctx) {
-  if (gfx.cyanLiftStrength <= 0) return;
-  const tp = timeProfile();
-  const nightMul = 0.75 + tp.night * 0.45;
-  const s = gfx.gradeStrength * gfx.cyanLiftStrength * nightMul;
-  // Restrained cool lift from window/city/TV side
-  drawGradeRadial(ctx, RW * 0.68, RH * 0.48, 0, RW * 0.55, [
-    [0.00, `rgba(80,190,255,${0.08 * s})`],
-    [0.45, `rgba(70,140,255,${0.030 * s})`],
-    [1.00, 'rgba(70,140,255,0)']
-  ], 'screen', 1);
-}
-
-function drawGradeContrast(ctx) {
-  if (gfx.contrastStrength <= 0) return;
-  const s = gfx.gradeStrength * gfx.contrastStrength;
-  // Gentle top/bottom shaping — not a crush
-  drawGradeFullGradient(ctx, [
-    [0.00, `rgba(0,0,0,${0.16 * s})`],
-    [0.18, `rgba(0,0,0,${0.04 * s})`],
-    [0.50, 'rgba(0,0,0,0)'],
-    [0.82, `rgba(0,0,0,${0.04 * s})`],
-    [1.00, `rgba(0,0,0,${0.14 * s})`]
-  ], 'multiply', 1);
-  // Tiny central lift so nothing feels crushed
-  drawGradeRadial(ctx, RW * 0.52, RH * 0.54, 0, RW * 0.62, [
-    [0.00, `rgba(255,245,235,${0.028 * s})`],
-    [0.45, `rgba(255,245,235,${0.009 * s})`],
-    [1.00, 'rgba(255,245,235,0)']
-  ], 'screen', 1);
-}
-
-function drawGradeVignette(ctx) {
-  if (gfx.vignetteStrength <= 0) return;
-  const tp = timeProfile();
-  const nightMul = 0.8 + tp.night * 0.25;
-  const strength = gfx.gradeStrength * gfx.vignetteStrength * nightMul;
-  const size = gfx.vignetteSize || 0.72;
-  const cx0 = RW * 0.50, cy0 = RH * 0.52;
-  const inner = Math.min(RW, RH) * size * 0.35;
-  const outer = Math.max(RW, RH) * size;
-  ctx.save(); ctx.globalCompositeOperation = 'multiply';
-  const g = ctx.createRadialGradient(cx0, cy0, inner, cx0, cy0, outer);
-  g.addColorStop(0.00, 'rgba(0,0,0,0)');
-  g.addColorStop(0.55, `rgba(0,0,0,${0.07 * strength})`);
-  g.addColorStop(0.82, `rgba(0,0,0,${0.18 * strength})`);
-  g.addColorStop(1.00, `rgba(0,0,0,${0.36 * strength})`);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, RW, RH);
-  ctx.restore();
-}
-
-// Build grade into grx for preview only
-function renderColourGradePass() {
-  clearGradeCanvas();
-  if (!gfx.gradePreview) return;
-  drawGradeShadowTint(grx);
-  drawGradeWarmMidtones(grx);
-  drawGradeCyanLift(grx);
-  drawGradeContrast(grx);
-  drawGradeVignette(grx);
-}
-
-// Apply grade directly to cx — correct blend mode behaviour against the real scene
-function compositeColourGrade() {
-  if (!gfx.colourGrade) return;
-  drawGradeShadowTint(cx);
-  drawGradeWarmMidtones(cx);
-  drawGradeCyanLift(cx);
-  drawGradeContrast(cx);
-  drawGradeVignette(cx);
-}
+const { renderColourGradePass, compositeColourGrade } = createColourGradePass({
+  gfx,
+  RW,
+  RH,
+  grx,
+  gradeCanvas,
+  cx,
+  configurePassCanvas,
+  resetPassContext,
+  timeProfile
+});
 
 // ── MICRO-MOTION SYSTEM ───────────────────────────────
 // "Ambient life, not animation." All values stay close to 1 — multiplicative modifiers only.
-const micro = {
-  lampWarmth: 1, tvPulse: 1, neonPulse: 1, holoPulseMul: 1,
-  hazeDriftX: 0, hazeDriftY: 0,
-  reflectionShimmer: 1, materialShimmer: 1,
-  lastRandomFlicker: 0, randomTvFlicker: 1, randomLampFlicker: 1
-};
-
-function microEnabled() { return gfx.microMotion && gfx.microMotionStrength > 0; }
-
 function updateMicroMotion(dt) {
   if (!gfx.microMotion) {
     micro.lampWarmth = micro.tvPulse = micro.neonPulse = micro.holoPulseMul = 1;

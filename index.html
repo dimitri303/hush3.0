@@ -23,7 +23,10 @@
   #c{display:block;image-rendering:auto;box-shadow:0 0 0 1px rgba(255,255,255,.04), 0 25px 80px rgba(0,0,0,.5);border-radius:12px}
   #overlay{position:absolute;inset:0;pointer-events:none}
   #hud{position:absolute;inset:0;pointer-events:none}
-  #wm{position:absolute;left:22px;bottom:16px;padding:8px 12px;border:1px solid rgba(255,255,255,.08);background:rgba(8,10,16,.42);backdrop-filter:blur(10px);font-size:12px;letter-spacing:.16em;color:#90a3bb}
+  #wm{position:absolute;left:22px;bottom:16px;padding:8px 12px;border:1px solid rgba(255,255,255,.08);background:rgba(8,10,16,.42);backdrop-filter:blur(10px);font-size:12px;letter-spacing:.16em;color:#90a3bb;cursor:pointer;pointer-events:auto;user-select:none}
+  #wmUi{position:absolute;left:22px;bottom:56px;display:flex;flex-direction:column;gap:8px;pointer-events:none;opacity:0;transform:translateY(6px);transition:.22s ease}
+  #wmUi.show{pointer-events:auto;opacity:1;transform:translateY(0)}
+  #wmUi .frow{display:flex;gap:6px;flex-wrap:wrap}
   #label{position:absolute;left:50%;top:20px;transform:translateX(-50%);padding:8px 14px;background:rgba(5,8,13,.6);border:1px solid rgba(255,255,255,.08);font-size:12px;letter-spacing:.18em;color:var(--cyan);opacity:0;transition:.24s ease}
   #label.show{opacity:1}
   #back{position:absolute;left:22px;top:20px;padding:10px 14px;background:var(--panel);border:1px solid var(--panel-border);font-size:12px;letter-spacing:.18em;color:#d8e2ef;opacity:0;pointer-events:none;transition:.24s ease;cursor:pointer}
@@ -62,6 +65,16 @@
     <div id="label"></div>
     <div id="back">◀ BACK</div>
     <div id="wm">HUSH OS A2.0</div>
+    <div id="wmUi">
+      <div class="frow">
+        <div class="mchip on" id="adaptiveToggle">ADAPTIVE</div>
+      </div>
+      <div class="frow">
+        <div class="mchip" data-res="720p">720p</div>
+        <div class="mchip on" data-res="900p">900p</div>
+        <div class="mchip" data-res="1080p">1080p</div>
+      </div>
+    </div>
     <div id="clock">SUITE 27<span class="time" id="clkTxt">22:47</span><span class="mode" id="timeTxt">NIGHT</span></div>
     <div id="timeUi">
       <div class="mchip" data-time="day">DAY</div>

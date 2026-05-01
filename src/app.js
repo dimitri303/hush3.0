@@ -1753,7 +1753,7 @@ function applyAdaptiveQuality(dt) {
 
   const lowThresholdMs = 24;   // ~42 FPS sustained
   const highThresholdMs = 15;  // ~66 FPS sustained
-  const qualityOrder = ['720p', '900p', '1080p'];
+  const qualityOrder = ['900p', '1080p'];
   const idx = qualityOrder.indexOf(gfx.qualityMode);
   if (idx === -1) return;
 
@@ -2962,6 +2962,8 @@ function updateUiState() {
   UI.winToggle.textContent = state.winOpen ? 'CLOSE WINDOW' : 'OPEN WINDOW';
   UI.winLean.classList.toggle('on', state.leanOut);
   UI.winLean.textContent = state.leanOut ? 'STEP BACK' : 'LEAN OUT';
+  UI.adaptiveToggle.classList.toggle('on', gfx.adaptiveQuality);
+  UI.resChips.forEach((el) => el.classList.toggle('on', el.dataset.res === gfx.qualityMode));
 
   // Anime video — play only when TV is on and anime channel is active
   const shouldPlay = state.tvOn && state.tvCh === 1;
@@ -3049,6 +3051,18 @@ setupUiControls({
   updateUiState,
   showLabel
 });
+
+state.toggleAdaptiveQuality = () => {
+  gfx.adaptiveQuality = !gfx.adaptiveQuality;
+  showLabel(gfx.adaptiveQuality ? '[ ADAPTIVE ON ]' : '[ ADAPTIVE OFF ]', '#b4f2ff', 1.1);
+};
+state.setQualityMode = (mode) => {
+  if (!mode) return;
+  if (!['720p', '900p', '1080p'].includes(mode)) return;
+  gfx.qualityMode = mode;
+  gfx.renderScale = getRenderScale();
+  showLabel(`[ ${mode.toUpperCase()} ]`, '#ffffa8', 1.1);
+};
 
 
 

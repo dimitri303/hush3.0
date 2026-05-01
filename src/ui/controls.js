@@ -65,6 +65,7 @@ export function setupUiControls(deps) {
 
   UI.back.addEventListener('click', () => setFocus(null));
   UI.clock.addEventListener('click', () => UI.timeUi.classList.toggle('show'));
+  UI.wm.addEventListener('click', () => UI.wmUi.classList.toggle('show'));
 
   document.querySelectorAll('[data-time]').forEach((el) => {
     el.addEventListener('click', () => {
@@ -118,6 +119,18 @@ export function setupUiControls(deps) {
     state.holoPulse = 1;
     updateUiState();
     showLabel(`[ ${state.mood.toUpperCase()} ]`, '#d8c2ff');
+  }));
+
+  if (UI.adaptiveToggle) {
+    UI.adaptiveToggle.addEventListener('click', () => {
+      state.toggleAdaptiveQuality?.();
+      updateUiState();
+    });
+  }
+  UI.resChips.forEach((el) => el.addEventListener('click', () => {
+    const mode = el.dataset.res;
+    state.setQualityMode?.(mode);
+    updateUiState();
   }));
 
   window.addEventListener('keydown', (e) => {

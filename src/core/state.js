@@ -1,5 +1,6 @@
 export function createUi() {
   const timeChips = Array.from(document.querySelectorAll('[data-time]'));
+  const resChips = Array.from(document.querySelectorAll('[data-res]'));
   return {
     label: document.getElementById('label'),
     back: document.getElementById('back'),
@@ -8,6 +9,10 @@ export function createUi() {
     timeTxt: document.getElementById('timeTxt'),
     timeUi: document.getElementById('timeUi'),
     timeChips,
+    wm: document.getElementById('wm'),
+    wmUi: document.getElementById('wmUi'),
+    adaptiveToggle: document.getElementById('adaptiveToggle'),
+    resChips,
     init: document.getElementById('init'),
     loaderTxt: document.getElementById('loaderTxt'),
     hifiUi: document.getElementById('hifiUi'),

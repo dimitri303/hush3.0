@@ -30,7 +30,7 @@ const gfx = {
   bloom: true,
   bloomPreview: false,
   bloomStrength: 0.55,
-  bloomBlur: 18,
+  bloomBlur: 14,
   contactShadows: true,
   contactPreview: false,
   contactStrength: 0.75,
@@ -72,7 +72,7 @@ const gfx = {
   supersampling: false,
   supersampleScale: 1.25,
   renderQuality: true,
-  qualityMode: '1080p',
+  qualityMode: '900p',
   renderScale: 1.0,
   lensTreatment: true,
   lensPreview: false,
@@ -193,6 +193,7 @@ renderCanvas.height = RH;
 const rcx = renderCanvas.getContext('2d');
 // Keep a stable reference to the visible context for interaction and CSS sizing
 const visibleCtx = canvas.getContext('2d');
+let frameCount = 0;
 
 const QUALITY_MODES = {
   '720p':  { label: '720p Performance', scale: 2 / 3 },
@@ -2670,6 +2671,10 @@ function drawCinematicGradePass() {
 }
 
 function render(ts) {
+  frameCount += 1;
+  const updateHeavyPasses = (frameCount & 1) === 0; // every 2nd frame
+  const updateLensPass = (frameCount % 3) === 0; // every 3rd frame
+
   const dt = state.lastTs ? Math.min(0.033, (ts - state.lastTs) / 1000) : 0.016;
   state.lastTs = ts;
   state.t = ts / 1000;
@@ -2713,7 +2718,7 @@ function render(ts) {
   }
 
   // Atmosphere pass — after shadows, before bloom
-  renderAtmospherePass();
+  if (updateHeavyPasses) renderAtmospherePass();
   if (gfx.atmospherePreview && gfx.debug && !gfx.contactPreview) {
     cx.save();
     resetLogicalTransform();
@@ -2726,7 +2731,7 @@ function render(ts) {
   }
 
   // Light wrap pass — after atmosphere, before bloom
-  renderLightWrapPass();
+  if (updateHeavyPasses) renderLightWrapPass();
   if (gfx.lightWrapPreview && gfx.debug && !gfx.contactPreview && !gfx.atmospherePreview) {
     cx.save();
     resetLogicalTransform();
@@ -2739,7 +2744,7 @@ function render(ts) {
   }
 
   // Material response pass — after light wrap, before bloom
-  renderMaterialPass();
+  if (updateHeavyPasses) renderMaterialPass();
   if (gfx.materialPreview && gfx.debug && !gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview) {
     cx.save();
     resetLogicalTransform();
@@ -2752,7 +2757,7 @@ function render(ts) {
   }
 
   // Reflection pass — after material, before bloom
-  renderReflectionPass();
+  if (updateHeavyPasses) renderReflectionPass();
   if (gfx.reflectionsPreview && gfx.debug && !gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview) {
     cx.save();
     resetLogicalTransform();
@@ -2765,7 +2770,7 @@ function render(ts) {
   }
 
   // Bloom — on top of everything
-  renderBloomPass();
+  if (updateHeavyPasses) renderBloomPass();
   if (gfx.bloomPreview && gfx.debug && !gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview && !gfx.reflectionsPreview) {
     cx.save();
     resetLogicalTransform();
@@ -2777,7 +2782,7 @@ function render(ts) {
   }
 
   // Colour grade — final pass, after bloom, before debug overlays
-  renderColourGradePass();
+  if (updateHeavyPasses) renderColourGradePass();
   if (gfx.gradePreview && gfx.debug && !gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview && !gfx.reflectionsPreview && !gfx.bloomPreview) {
     cx.save();
     resetLogicalTransform();
@@ -2790,7 +2795,7 @@ function render(ts) {
   }
 
   // Depth polish — after grade, before lens
-  renderDepthPolishPass();
+  if (updateHeavyPasses) renderDepthPolishPass();
   if (gfx.depthPreview && gfx.debug && !gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview && !gfx.reflectionsPreview && !gfx.bloomPreview && !gfx.gradePreview) {
     cx.save();
     resetLogicalTransform();
@@ -2803,7 +2808,7 @@ function render(ts) {
   }
 
   // Lens treatment — final optical pass, after grade, before debug
-  renderLensPass();
+  if (updateLensPass) renderLensPass();
   if (gfx.lensPreview && gfx.debug && !gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview && !gfx.reflectionsPreview && !gfx.bloomPreview && !gfx.gradePreview && !gfx.depthPreview) {
     cx.save();
     resetLogicalTransform();

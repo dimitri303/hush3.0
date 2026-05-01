@@ -1,5 +1,8 @@
 import { createState, createUi } from './core/state.js';
 import { images, loadAssets } from './assets/loader.js';
+import { createLayout, hotspots, tracks } from './scene/config.js';
+import { clamp, lerp, ease, rr, gaussian, mixColor } from './core/math.js';
+import { setupDebugControls } from './debug/controls.js';
 
 const VERSION = 'A2.3-CINEMATIC-VISUAL-PASS';
 const BUILD_STAMP = 'A2.3-CINEMATIC-VISUAL-PASS | 2026-04-28 19:27:56 UTC';
@@ -435,33 +438,7 @@ function mixRGB3(day,sunset,night){
 }
 function rgbaFromRGB(rgb,a){return `rgba(${rgb[0]|0},${rgb[1]|0},${rgb[2]|0},${a.toFixed(3)})`;}
 
-const layout = {
-  room:           { x: 0, y: 0, w: RW, h: RH },
-  win:            { x: 427, y: 178, w: 1071, h: 473 },
-  chair:          { x: 172, y: 534, w: 540,  h: 464 },
-  lamp:           { x: 426, y: 462, w: 200,  h: 304 },
-  hifi:           { x: 540, y: 389, w: 1041, h: 416 },
-  recordPlayer:   { x: 553, y: 556, w: 181,  h: 112 },
-  headphones:     { x: 722, y: 598, w: 99,   h: 81  },
-  tv:             { x: 1258, y: 485, w: 290, h: 206 },
-  table:          { x: 873, y: 617, w: 805,  h: 602 },
-  mug:            { x: 961, y: 875, w: 147,  h: 101 },
-  remote:         { x: 1139, y: 887, w: 117, h: 106 },
-  books:          { x: 1394, y: 856, w: 193, h: 148 },
-  cube:           { x: 1292, y: 884, w: 56,  h: 74  },
-  cubeGlow:       { x: 1320, y: 903 },
-  screen:         { x: 1317, y: 526, w: 113, h: 113 },
-  rackDisplay:    { x: 775,  y: 681, w: 192, h: 12  },
-  rackKnobs:      { x: 913,  y: 705 },
-  recordSleeve:   { x: 675,  y: 673, w: 79,  h: 74  },
-  lampMouth:      { x: 541,  y: 524 },
-  lampTarget:     { x: 582,  y: 715 },
-  tvGlowOrigin:   { x: 1378, y: 601 },
-  tvGlowSpill:    { x: 828,  y: 784 },
-  hifiGlowOrigin: { x: 811,  y: 689 },
-  hifiGlowSpill:  { x: 811,  y: 751 },
-  moon:           { x: 1266, y: 213, w: 76,  h: 37  },
-};
+const layout = createLayout(RW, RH);
 
 // ── TEMP LAYOUT DEBUGGER ──────────────────────────────
 // Set to false when the scene layout is locked.
@@ -509,49 +486,6 @@ const debugTargets = [
 ];
 
 
-const hotspots = [
-  {
-    id: 'window',
-    label: 'the window',
-    hit:   { x: 535,  y: 265, w: 825, h: 319 },
-    focus: { x: 535,  y: 265, w: 824, h: 319 },
-    card: 'winUi',
-    zoom: { s: 1.55, ax: 0.50, ay: 0.42 }
-  },
-  {
-    id: 'hifi',
-    label: 'the hi-fi',
-    hit:   { x: 641,  y: 636, w: 440, h: 109 },
-    focus: { x: 641,  y: 635, w: 440, h: 111 },
-    card: 'hifiUi',
-    zoom: { s: 1.75, ax: 0.50, ay: 0.58 }
-  },
-  {
-    id: 'tv',
-    label: 'the television',
-    hit:   { x: 1258, y: 485, w: 290, h: 206 },
-    focus: { x: 1258, y: 485, w: 290, h: 244 },
-    card: 'tvUi',
-    zoom: { s: 2.05, ax: 0.50, ay: 0.50 }
-  },
-  {
-    id: 'holo',
-    label: 'the holocube',
-    hit:   { x: 1248, y: 845, w: 150, h: 150 },
-    focus: { x: 1248, y: 845, w: 150, h: 150 },
-    card: 'holoUi',
-    zoom: { s: 2.25, ax: 0.50, ay: 0.70 }
-  },
-  {
-    id: 'lamp',
-    label: 'the lamp',
-    hit:   { x: 479,  y: 484, w: 81,  h: 269 },
-    focus: { x: 452,  y: 472, w: 129, h: 300 },
-    card: null,
-    zoom: { s: 1.85, ax: 0.32, ay: 0.55 }
-  }
-];
-
 // No-op — hit/focus boxes are now independent of layout
 function syncHotspotsFromLayout() {}
 
@@ -567,12 +501,6 @@ function hotspotCentre(h, kind = 'focus') {
 }
 
 
-const tracks = [
-  { title: 'Blue Potion', subtitle: 'Plush Gun', coverHue: '#8ed6ff' },
-  { title: 'Tokyo Static', subtitle: 'Hush Radio', coverHue: '#ff94db' },
-  { title: 'Hush', subtitle: 'Suite 27', coverHue: '#b1a1ff' }
-];
-
 function resize() {
   const sx = innerWidth / RW;
   const sy = innerHeight / RH;
@@ -582,19 +510,6 @@ function resize() {
   applyFocusTransform(true);
 }
 addEventListener('resize', resize);
-
-function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-function lerp(a, b, t) { return a + (b - a) * t; }
-function ease(t) { return t * t * (3 - 2 * t); }
-function rr(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
 
 function drawImageFit(key, x, y, w, h, opts = {}) {
   const img = images[key];
@@ -648,11 +563,6 @@ function updateClock(dt) {
   document.querySelectorAll('[data-time]').forEach(el => el.classList.toggle('on', el.dataset.time === (state.timeCycle ? 'cycle' : state.timeMode)));
 }
 
-function gaussian(value, peak, width) {
-  const d = Math.min(Math.abs(value - peak), 24 - Math.abs(value - peak));
-  return Math.exp(-(d * d) / (2 * width * width));
-}
-
 function dominantTimeMode() {
   const weights = state.timeBlend;
   return Object.entries(weights).sort((a, b) => b[1] - a[1])[0][0];
@@ -671,13 +581,6 @@ function skyPalette() {
     [18, 12, 35, n]
   ]);
   return { top, bottom };
-}
-
-function mixColor(parts) {
-  let r = 0, g = 0, b = 0, t = 0;
-  parts.forEach(([pr, pg, pb, a]) => { r += pr * a; g += pg * a; b += pb * a; t += a; });
-  t = Math.max(t, 0.0001);
-  return `rgb(${Math.round(r / t)},${Math.round(g / t)},${Math.round(b / t)})`;
 }
 
 function drawBackgroundFallback() {
@@ -4302,235 +4205,23 @@ document.querySelectorAll('[data-mood]').forEach(el => el.addEventListener('clic
 
 
 // ── TEMP LAYOUT DEBUGGER CONTROLS ─────────────────────
-window.addEventListener('keydown', e => {
-
-  // Ctrl+Shift+G — toggle graphics debug
-  if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'g') {
-    gfx.debug = !gfx.debug;
-    e.preventDefault();
-    return;
-  }
-
-  // Graphics debug controls
-  if (gfx.debug) {
-    const k = e.key.toLowerCase();
-    if (k === 'b')                      { gfx.bloom = !gfx.bloom; e.preventDefault(); return; }
-    if (k === 'm')                      { gfx.bloomPreview = !gfx.bloomPreview; e.preventDefault(); return; }
-    if (e.key === '[')                  { gfx.bloomStrength = Math.max(0, +(gfx.bloomStrength - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.key === ']')                  { gfx.bloomStrength = Math.min(1.5, +(gfx.bloomStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.key === '-' || e.key === '_') { gfx.bloomBlur = Math.max(0, gfx.bloomBlur - 2); e.preventDefault(); return; }
-    if (e.key === '=' || e.key === '+') { gfx.bloomBlur = Math.min(48, gfx.bloomBlur + 2); e.preventDefault(); return; }
-    if (e.key === '1') { gfx.sources.city   = !gfx.sources.city;   e.preventDefault(); return; }
-    if (e.key === '2') { gfx.sources.window = !gfx.sources.window; e.preventDefault(); return; }
-    if (e.key === '3') { gfx.sources.tv     = !gfx.sources.tv;     e.preventDefault(); return; }
-    if (e.key === '4') { gfx.sources.holo   = !gfx.sources.holo;   e.preventDefault(); return; }
-    if (e.key === '5') { gfx.sources.hifi   = !gfx.sources.hifi;   e.preventDefault(); return; }
-    // Shadow controls
-    if (k === 'c') { gfx.contactShadows = !gfx.contactShadows; e.preventDefault(); return; }
-    if (k === 'v') { gfx.contactPreview = !gfx.contactPreview; e.preventDefault(); return; }
-    if (e.key === ',') { gfx.contactStrength = Math.max(0, +(gfx.contactStrength - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.key === '.') { gfx.contactStrength = Math.min(1.5, +(gfx.contactStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.key === '<') { gfx.aoStrength = Math.max(0, +(gfx.aoStrength - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.key === '>') { gfx.aoStrength = Math.min(1.5, +(gfx.aoStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.key === '6') { gfx.shadows.chair = !gfx.shadows.chair; e.preventDefault(); return; }
-    if (e.key === '7') { const v = !gfx.shadows.hifi; gfx.shadows.hifi = v; gfx.shadows.turntable = v; gfx.shadows.headphones = v; e.preventDefault(); return; }
-    if (e.key === '8') { gfx.shadows.tv = !gfx.shadows.tv; e.preventDefault(); return; }
-    if (e.key === '9') { const v = !gfx.shadows.table; gfx.shadows.table = v; gfx.shadows.mug = v; gfx.shadows.remote = v; gfx.shadows.books = v; gfx.shadows.holo = v; e.preventDefault(); return; }
-    if (e.key === '0') { gfx.shadows.lamp = !gfx.shadows.lamp; e.preventDefault(); return; }
-    // Atmosphere controls
-    if (k === 'a') { gfx.atmosphere = !gfx.atmosphere; e.preventDefault(); return; }
-    if (k === 'n') { gfx.atmospherePreview = !gfx.atmospherePreview; e.preventDefault(); return; }
-    if (k === 'j') { gfx.floorHazeStrength = Math.max(0, +(gfx.floorHazeStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'k') { gfx.floorHazeStrength = Math.min(1.5, +(gfx.floorHazeStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'u') { gfx.midHazeStrength   = Math.max(0, +(gfx.midHazeStrength   - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'i') { gfx.midHazeStrength   = Math.min(1.5, +(gfx.midHazeStrength   + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'o') { gfx.backFogStrength   = Math.max(0, +(gfx.backFogStrength    - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'p') { gfx.backFogStrength   = Math.min(1.5, +(gfx.backFogStrength    + 0.02).toFixed(2)); e.preventDefault(); return; }
-    // Light wrap controls
-    if (k === 'r') { gfx.lightWrap = !gfx.lightWrap; e.preventDefault(); return; }
-    if (k === 't') { gfx.lightWrapPreview = !gfx.lightWrapPreview; e.preventDefault(); return; }
-    if (k === 'z') { gfx.wrapWindowStrength  = Math.max(0, +(gfx.wrapWindowStrength  - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'x') { gfx.wrapWindowStrength  = Math.min(1.5, +(gfx.wrapWindowStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'd') { gfx.wrapLampStrength    = Math.max(0, +(gfx.wrapLampStrength    - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'f') { gfx.wrapLampStrength    = Math.min(1.5, +(gfx.wrapLampStrength  + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'g') { gfx.wrapTvStrength      = Math.max(0, +(gfx.wrapTvStrength      - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'h') { gfx.wrapTvStrength      = Math.min(1.5, +(gfx.wrapTvStrength    + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'q') { gfx.wrapAmbientStrength = Math.max(0, +(gfx.wrapAmbientStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'w') { gfx.wrapAmbientStrength = Math.min(1.5, +(gfx.wrapAmbientStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (k === 'y') { const anyOff = Object.values(gfx.wraps).some(v => !v); Object.keys(gfx.wraps).forEach(k2 => gfx.wraps[k2] = anyOff); e.preventDefault(); return; }
-    // Material response controls (Shift+ to avoid conflicts)
-    if (k === 'e' && !e.shiftKey) { gfx.materialResponse = !gfx.materialResponse; e.preventDefault(); return; }
-    if (k === 'l')                 { gfx.materialPreview = !gfx.materialPreview; e.preventDefault(); return; }
-    if (e.shiftKey && k === 'm')   { gfx.materialStrength    = Math.max(0, +(gfx.materialStrength    - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 'n')   { gfx.materialStrength    = Math.min(1.5, +(gfx.materialStrength  + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 'w')   { gfx.woodSheenStrength   = Math.max(0, +(gfx.woodSheenStrength   - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 'e')   { gfx.woodSheenStrength   = Math.min(1.5, +(gfx.woodSheenStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 'g')   { gfx.glassSheenStrength  = Math.max(0, +(gfx.glassSheenStrength  - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 'h')   { gfx.glassSheenStrength  = Math.min(1.5, +(gfx.glassSheenStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 't')   { gfx.metalGlintStrength  = Math.max(0, +(gfx.metalGlintStrength  - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 'y')   { gfx.metalGlintStrength  = Math.min(1.5, +(gfx.metalGlintStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 'c')   { gfx.leatherSheenStrength = Math.max(0, +(gfx.leatherSheenStrength - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.shiftKey && k === 'v')   { gfx.leatherSheenStrength = Math.min(1.5, +(gfx.leatherSheenStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    // Reflection controls
-    if (e.shiftKey && k === 'r') { gfx.reflections = !gfx.reflections; e.preventDefault(); return; }
-    if (e.shiftKey && k === 'l') { gfx.reflectionsPreview = !gfx.reflectionsPreview; e.preventDefault(); return; }
-    if (e.altKey && e.key === '1') { gfx.floorReflectionStrength = Math.max(0, +(gfx.floorReflectionStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '2') { gfx.floorReflectionStrength = Math.min(1.5, +(gfx.floorReflectionStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '3') { gfx.tableReflectionStrength = Math.max(0, +(gfx.tableReflectionStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '4') { gfx.tableReflectionStrength = Math.min(1.5, +(gfx.tableReflectionStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '5') { gfx.tvReflectionStrength   = Math.max(0, +(gfx.tvReflectionStrength   - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '6') { gfx.tvReflectionStrength   = Math.min(1.5, +(gfx.tvReflectionStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '7') { gfx.holoReflectionStrength = Math.max(0, +(gfx.holoReflectionStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '8') { gfx.holoReflectionStrength = Math.min(1.5, +(gfx.holoReflectionStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '9') { gfx.lampReflectionStrength = Math.max(0, +(gfx.lampReflectionStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '0') { gfx.lampReflectionStrength = Math.min(1.5, +(gfx.lampReflectionStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    // Colour grade controls
-    if (e.shiftKey && k === 'g') { gfx.colourGrade = !gfx.colourGrade; e.preventDefault(); return; }
-    if (e.shiftKey && k === 'p') { gfx.gradePreview = !gfx.gradePreview; e.preventDefault(); return; }
-    if (e.altKey && k === 'q')  { gfx.gradeStrength      = Math.max(0, +(gfx.gradeStrength      - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'w')  { gfx.gradeStrength      = Math.min(1.5, +(gfx.gradeStrength    + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'a')  { gfx.contrastStrength   = Math.max(0, +(gfx.contrastStrength   - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 's')  { gfx.contrastStrength   = Math.min(1.5, +(gfx.contrastStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'z')  { gfx.shadowTintStrength = Math.max(0, +(gfx.shadowTintStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'x')  { gfx.shadowTintStrength = Math.min(1.5, +(gfx.shadowTintStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'c')  { gfx.warmMidStrength    = Math.max(0, +(gfx.warmMidStrength    - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'v')  { gfx.warmMidStrength    = Math.min(1.5, +(gfx.warmMidStrength  + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'b')  { gfx.cyanLiftStrength   = Math.max(0, +(gfx.cyanLiftStrength   - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'n')  { gfx.cyanLiftStrength   = Math.min(1.5, +(gfx.cyanLiftStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === ',')  { gfx.vignetteStrength   = Math.max(0, +(gfx.vignetteStrength   - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === '.')  { gfx.vignetteStrength   = Math.min(1.5, +(gfx.vignetteStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    // Supersampling controls
-    if (e.shiftKey && k === 's') { gfx.supersampling = !gfx.supersampling; e.preventDefault(); return; }
-    if (e.altKey && e.key === '[') { gfx.supersampleScale = Math.max(1, +(gfx.supersampleScale - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === ']') { gfx.supersampleScale = Math.min(2, +(gfx.supersampleScale + 0.05).toFixed(2)); e.preventDefault(); return; }
-    // Lens treatment controls
-    if (e.shiftKey && k === 'o') { gfx.lensTreatment = !gfx.lensTreatment; e.preventDefault(); return; }
-    if (e.shiftKey && k === 'i') { gfx.lensPreview = !gfx.lensPreview; e.preventDefault(); return; }
-    if (e.shiftKey && k === 'v') { gfx.scanTexture = !gfx.scanTexture; e.preventDefault(); return; }
-    if (e.altKey && k === 'g')   { gfx.grainStrength    = Math.max(0, +(gfx.grainStrength    - 0.005).toFixed(3)); e.preventDefault(); return; }
-    if (e.altKey && k === 'h')   { gfx.grainStrength    = Math.min(0.2, +(gfx.grainStrength  + 0.005).toFixed(3)); e.preventDefault(); return; }
-    if (e.altKey && k === 'j')   { gfx.chromaStrength   = Math.max(0, +(gfx.chromaStrength   - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'k')   { gfx.chromaStrength   = Math.min(1.5, +(gfx.chromaStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'y')   { gfx.halationStrength = Math.max(0, +(gfx.halationStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'u')   { gfx.halationStrength = Math.min(1.0, +(gfx.halationStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    // Micro-motion controls
-    if (e.shiftKey && k === 'm') { gfx.microMotion = !gfx.microMotion; e.preventDefault(); return; }
-    if (e.altKey && k === 'm')   { gfx.microMotionStrength       = Math.max(0, +(gfx.microMotionStrength       - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'n')   { gfx.microMotionStrength       = Math.min(1.5, +(gfx.microMotionStrength     + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'e')   { gfx.neonBreathStrength        = Math.max(0, +(gfx.neonBreathStrength        - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'r')   { gfx.neonBreathStrength        = Math.min(1.5, +(gfx.neonBreathStrength      + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'd')   { gfx.lampFlickerStrength       = Math.max(0, +(gfx.lampFlickerStrength       - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'f')   { gfx.lampFlickerStrength       = Math.min(1.5, +(gfx.lampFlickerStrength     + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 't')   { gfx.tvFlickerStrength         = Math.max(0, +(gfx.tvFlickerStrength         - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'y')   { gfx.tvFlickerStrength         = Math.min(1.5, +(gfx.tvFlickerStrength       + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'u')   { gfx.hazeDriftStrength         = Math.max(0, +(gfx.hazeDriftStrength         - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'i')   { gfx.hazeDriftStrength         = Math.min(1.5, +(gfx.hazeDriftStrength       + 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'o')   { gfx.reflectionShimmerStrength = Math.max(0, +(gfx.reflectionShimmerStrength - 0.05).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'p')   { gfx.reflectionShimmerStrength = Math.min(1.5, +(gfx.reflectionShimmerStrength + 0.05).toFixed(2)); e.preventDefault(); return; }
-    // Depth polish controls
-    if (e.shiftKey && k === 'd') { gfx.depthPolish = !gfx.depthPolish; e.preventDefault(); return; }
-    if (e.shiftKey && k === 'b') { gfx.depthPreview = !gfx.depthPreview; e.preventDefault(); return; }
-    if (e.altKey && k === 'd')   { gfx.depthStrength        = Math.max(0, +(gfx.depthStrength        - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'f')   { gfx.depthStrength        = Math.min(1.5, +(gfx.depthStrength      + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'z')   { gfx.backgroundSoftness   = Math.max(0, +(gfx.backgroundSoftness   - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'x')   { gfx.backgroundSoftness   = Math.min(1.5, +(gfx.backgroundSoftness + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'c')   { gfx.foregroundSoftness   = Math.max(0, +(gfx.foregroundSoftness   - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'v')   { gfx.foregroundSoftness   = Math.min(1.5, +(gfx.foregroundSoftness + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 'r')   { gfx.midgroundClarity     = Math.max(0, +(gfx.midgroundClarity     - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && k === 't')   { gfx.midgroundClarity     = Math.min(1.5, +(gfx.midgroundClarity   + 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === '[') { gfx.depthVignetteStrength = Math.max(0, +(gfx.depthVignetteStrength - 0.02).toFixed(2)); e.preventDefault(); return; }
-    if (e.altKey && e.key === ']') { gfx.depthVignetteStrength = Math.min(1.5, +(gfx.depthVignetteStrength + 0.02).toFixed(2)); e.preventDefault(); return; }
-    // Render quality controls
-    if (e.shiftKey && k === 'q') {
-      const modes = ['720p', '900p', '1080p'];
-      gfx.qualityMode = modes[(modes.indexOf(gfx.qualityMode) + 1) % modes.length];
-      gfx.renderScale = getRenderScale();
-      if (typeof showLabel === 'function') showLabel(`[ ${getQualityLabel()} ]`, '#ffffa8', 1.2);
-      e.preventDefault(); return;
-    }
-    if (e.key === 'F1') { gfx.qualityMode = '720p';  gfx.renderScale = getRenderScale(); if (typeof showLabel === 'function') showLabel('[ 720p Performance ]', '#ffffa8', 1.2); e.preventDefault(); return; }
-    if (e.key === 'F2') { gfx.qualityMode = '900p';  gfx.renderScale = getRenderScale(); if (typeof showLabel === 'function') showLabel('[ 900p Balanced ]',    '#ffffa8', 1.2); e.preventDefault(); return; }
-    if (e.key === 'F3') { gfx.qualityMode = '1080p'; gfx.renderScale = getRenderScale(); if (typeof showLabel === 'function') showLabel('[ 1080p Quality ]',    '#ffffa8', 1.2); e.preventDefault(); return; }
-  }
-
-  // Backtick toggles the temporary layout editor on/off.
-  if (e.key === '`') {
-    e.preventDefault();
-    if (e.shiftKey) {
-      // Shift+` toggles scale guide mode
-      DEBUG_SCALE = !DEBUG_SCALE;
-      showLabel(DEBUG_SCALE ? '[ SCALE GUIDE ON ]' : '[ SCALE GUIDE OFF ]', '#ffffa8', 1);
-      return;
-    }    DEBUG_LAYOUT = !DEBUG_LAYOUT;
-    console.log(`DEBUG_LAYOUT: ${DEBUG_LAYOUT ? 'ON' : 'OFF'}`);
-    if (typeof showLabel === 'function') {
-      showLabel(DEBUG_LAYOUT ? '[ DEBUG LAYOUT ON ]' : '[ DEBUG LAYOUT OFF ]', '#ffffa8', 1);
-    }
-    return;
-  }
-
-  if (e.key === 'p' || e.key === 'P') {
-    e.preventDefault();
-    DEBUG_SCALE = !DEBUG_SCALE;
-    showLabel(DEBUG_SCALE ? '[ SCALE GUIDE ON ]' : '[ SCALE GUIDE OFF ]', '#ffffa8', 1);
-    return;
-  }
-  if (DEBUG_SCALE) {
-    const g = scaleGuides[scaleGuideIndex];
-    const step = e.shiftKey ? 10 : 1;
-    if (e.key === 'Tab')         { e.preventDefault(); scaleGuideIndex = (scaleGuideIndex + 1) % scaleGuides.length; return; }
-    if (e.key === 'ArrowLeft')   { e.preventDefault(); g.x -= step; return; }
-    if (e.key === 'ArrowRight')  { e.preventDefault(); g.x += step; return; }
-    if (e.key === 'ArrowUp')     { e.preventDefault(); g.floorY -= step; return; }
-    if (e.key === 'ArrowDown')   { e.preventDefault(); g.floorY += step; return; }
-    if (e.key === '+' || e.key === '=') { g.scale = Math.min(2.5, +(g.scale + 0.01).toFixed(2)); return; }
-    if (e.key === '-')           { g.scale = Math.max(0.3, +(g.scale - 0.01).toFixed(2)); return; }
-  }
-
-  if (!DEBUG_LAYOUT) return;
-
-  const r = getDebugRect(debugTarget);
-  if (!r) return;
-
-  const isArrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key);
-  const step = e.altKey ? 10 : 1;
-
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    const i = debugTargets.indexOf(debugTarget);
-    debugTarget = debugTargets[(i + 1) % debugTargets.length];
-    console.log('Debug target:', debugTarget, getDebugRect(debugTarget));
-    return;
-  }
-
-  if (e.key === 'c' || e.key === 'C') {
-    const v = getDebugRect(debugTarget);
-    const output = formatDebugLine(debugTarget, v);
-    console.log(output);
-    if (navigator.clipboard) navigator.clipboard.writeText(output).catch(() => {});
-    if (typeof showLabel === 'function') showLabel(`[ COPIED ${debugTarget} ]`, '#ffffa8', 0.8);
-    return;
-  }
-
-  if (!isArrow) return;
-
-  e.preventDefault();
-
-  const resize = e.shiftKey && r.w != null && r.h != null;
-
-  if (!resize) {
-    if (e.key === 'ArrowLeft') r.x -= step;
-    if (e.key === 'ArrowRight') r.x += step;
-    if (e.key === 'ArrowUp') r.y -= step;
-    if (e.key === 'ArrowDown') r.y += step;
-  } else {
-    if (e.key === 'ArrowLeft') r.w -= step;
-    if (e.key === 'ArrowRight') r.w += step;
-    if (e.key === 'ArrowUp') r.h -= step;
-    if (e.key === 'ArrowDown') r.h += step;
-    r.w = Math.max(1, r.w);
-    r.h = Math.max(1, r.h);
-  }
+setupDebugControls({
+  gfx,
+  scaleGuides,
+  debugTargets,
+  getDebugLayout: () => DEBUG_LAYOUT,
+  setDebugLayout: (value) => { DEBUG_LAYOUT = value; },
+  getDebugScale: () => DEBUG_SCALE,
+  setDebugScale: (value) => { DEBUG_SCALE = value; },
+  getDebugTarget: () => debugTarget,
+  setDebugTarget: (value) => { debugTarget = value; },
+  getScaleGuideIndex: () => scaleGuideIndex,
+  setScaleGuideIndex: (value) => { scaleGuideIndex = value; },
+  getDebugRect,
+  formatDebugLine,
+  showLabel,
+  getRenderScale,
+  getQualityLabel
 });
 
 // ── SNOW SYSTEM ───────────────────────────────────────

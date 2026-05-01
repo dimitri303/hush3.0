@@ -9,6 +9,8 @@ import { createLightWrapPass } from './render/passes/light-wrap.js';
 import { createMaterialPass } from './render/passes/material.js';
 import { createColourGradePass } from './render/passes/colour-grade.js';
 import { createLensPass } from './render/passes/lens.js';
+import { createReflectionPass } from './render/passes/reflection.js';
+import { createContactShadowPass } from './render/passes/contact-shadows.js';
 
 const VERSION = 'A2.3-CINEMATIC-VISUAL-PASS';
 const BUILD_STAMP = 'A2.3-CINEMATIC-VISUAL-PASS | 2026-04-28 19:27:56 UTC';
@@ -1677,270 +1679,32 @@ const { renderLensPass, compositeLensTreatment } = createLensPass({
   resetPassContext
 });
 
-// ── REFLECTION PASS ───────────────────────────────────
-// "Reflected coloured light, not mirror reflection."
-// Global scale keeps it from becoming glossy by default.
-const REF_SCALE = 0.40;
+const { renderReflectionPass, compositeReflections } = createReflectionPass({
+  gfx,
+  state,
+  layout,
+  RW,
+  RH,
+  rx,
+  reflectionCanvas,
+  cx,
+  configurePassCanvas,
+  resetPassContext,
+  microEnabled,
+  micro
+});
 
-function clearReflectionCanvas() {
-  configurePassCanvas(reflectionCanvas);
-  rx.setTransform(1, 0, 0, 1, 0, 0);
-  rx.clearRect(0, 0, reflectionCanvas.width, reflectionCanvas.height);
-  resetPassContext(rx);
-}
-
-function drawReflectionBlob(ctx, x, y, w, h, colour, alpha = 0.12, blur = 18, angle = 0) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.filter = `blur(${blur}px)`;
-  const a = alpha * REF_SCALE;
-  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(w, h) * 0.5);
-  g.addColorStop(0,    colour.replace('__A__', a.toFixed(3)));
-  g.addColorStop(0.38, colour.replace('__A__', (a * 0.45).toFixed(3)));
-  g.addColorStop(1,    colour.replace('__A__', '0'));
-  ctx.fillStyle = g;
-  ctx.scale(w / Math.max(w, h), h / Math.max(w, h));
-  ctx.beginPath();
-  ctx.arc(0, 0, Math.max(w, h) * 0.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawReflectionStreak(ctx, x, y, w, h, colour, alpha = 0.10, blur = 10, angle = 0) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.filter = `blur(${blur}px)`;
-  const a = alpha * REF_SCALE;
-  const g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
-  g.addColorStop(0,    colour.replace('__A__', '0'));
-  g.addColorStop(0.28, colour.replace('__A__', (a * 0.30).toFixed(3)));
-  g.addColorStop(0.5,  colour.replace('__A__', a.toFixed(3)));
-  g.addColorStop(0.72, colour.replace('__A__', (a * 0.30).toFixed(3)));
-  g.addColorStop(1,    colour.replace('__A__', '0'));
-  ctx.fillStyle = g;
-  ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.restore();
-}
-
-function drawSurfaceSheen(ctx, x, y, w, h, colour, alpha = 0.10, blur = 8, angle = 0) {
-  ctx.save();
-  ctx.translate(x + w / 2, y + h / 2);
-  ctx.rotate(angle);
-  ctx.filter = `blur(${blur}px)`;
-  const a = alpha * REF_SCALE;
-  const g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
-  g.addColorStop(0,    colour.replace('__A__', '0'));
-  g.addColorStop(0.35, colour.replace('__A__', (a * 0.35).toFixed(3)));
-  g.addColorStop(0.52, colour.replace('__A__', a.toFixed(3)));
-  g.addColorStop(0.70, colour.replace('__A__', (a * 0.25).toFixed(3)));
-  g.addColorStop(1,    colour.replace('__A__', '0'));
-  ctx.fillStyle = g;
-  ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.restore();
-}
-
-function drawFloorWindowReflection() {
-  if (!gfx.reflectionSources.window && !gfx.reflectionSources.city) return;
-  const s = gfx.floorReflectionStrength;
-  const rm = microEnabled() ? micro.reflectionShimmer : 1;
-  rx.save(); rx.globalCompositeOperation = 'screen';
-  drawReflectionBlob(rx, 980, 860, 760, 150, 'rgba(175,95,255,__A__)',  0.13 * s * rm, 28, -0.02);
-  drawReflectionBlob(rx, 1080, 900, 560, 90,  'rgba(90,180,255,__A__)', 0.08 * s * rm, 24,  0.03);
-  drawReflectionStreak(rx, 650,  830, 260, 34, 'rgba(180,105,255,__A__)', 0.08 * s * rm, 18, -0.12);
-  drawReflectionStreak(rx, 1280, 825, 260, 34, 'rgba(180,105,255,__A__)', 0.08 * s * rm, 18,  0.10);
-  rx.restore();
-}
-
-function drawFloorTvReflection() {
-  if (!gfx.reflectionSources.tv || !state.tvOn) return;
-  const s = gfx.tvReflectionStrength;
-  const sc = layout.screen;
-  const x = sc.x + sc.w * 0.5, y = sc.y + sc.h + 160;
-  rx.save(); rx.globalCompositeOperation = 'screen';
-  drawReflectionBlob(rx, x, y, 300, 80, 'rgba(110,160,255,__A__)',  0.18 * s, 20,  0.02);
-  drawReflectionStreak(rx, x - 20, y + 42, 220, 18, 'rgba(145,190,255,__A__)', 0.11 * s, 12, -0.03);
-  rx.restore();
-}
-
-function drawFloorLampReflection() {
-  if (!gfx.reflectionSources.lamp || !state.lampOn) return;
-  const s = gfx.lampReflectionStrength;
-  const lm = microEnabled() ? micro.lampWarmth : 1;
-  const p = layout.lampTarget || { x: 582, y: 715 };
-  rx.save(); rx.globalCompositeOperation = 'screen';
-  drawReflectionBlob(rx, p.x + 70, p.y + 85, 310, 92, 'rgba(255,175,95,__A__)',  0.13 * s * lm, 22, -0.10);
-  drawReflectionStreak(rx, p.x + 150, p.y + 118, 230, 20, 'rgba(255,190,115,__A__)', 0.09 * s * lm, 12, -0.08);
-  rx.restore();
-}
-
-function drawTableReflections() {
-  const r = layout.table;
-  const s = gfx.tableReflectionStrength;
-  rx.save(); rx.globalCompositeOperation = 'screen';
-
-  if (gfx.reflectionSources.window || gfx.reflectionSources.city) {
-    drawSurfaceSheen(rx, r.x + r.w * 0.17, r.y + r.h * 0.40, r.w * 0.58, 28,
-      'rgba(160,135,255,__A__)', 0.10 * s, 9, -0.04);
-  }
-  if (gfx.reflectionSources.lamp && state.lampOn) {
-    drawSurfaceSheen(rx, r.x + r.w * 0.10, r.y + r.h * 0.46, r.w * 0.40, 24,
-      'rgba(255,190,120,__A__)', 0.08 * s, 8, -0.05);
-  }
-  if (gfx.reflectionSources.holo && layout.cube) {
-    const c = layout.cube;
-    drawReflectionBlob(rx, c.x + c.w * 0.48, c.y + c.h * 1.05, c.w * 2.1, c.h * 0.45,
-      'rgba(185,145,255,__A__)', 0.38 * gfx.holoReflectionStrength, 10, 0.02);
-    drawReflectionStreak(rx, c.x + c.w * 0.55, c.y + c.h * 1.02, c.w * 1.7, 8,
-      'rgba(230,210,255,__A__)', 0.18 * gfx.holoReflectionStrength, 6, 0.0);
-  }
-  if (gfx.reflectionSources.tv && state.tvOn) {
-    drawSurfaceSheen(rx, r.x + r.w * 0.48, r.y + r.h * 0.42, r.w * 0.30, 24,
-      'rgba(120,170,255,__A__)', 0.07 * gfx.tvReflectionStrength, 8, -0.03);
-  }
-  rx.restore();
-}
-
-function drawRackReflections() {
-  const s = gfx.tableReflectionStrength;
-  const h = layout.hifi; const d = layout.rackDisplay;
-  rx.save(); rx.globalCompositeOperation = 'screen';
-  if (gfx.reflectionSources.window || gfx.reflectionSources.city) {
-    drawReflectionStreak(rx, h.x + h.w * 0.34, h.y + h.h * 0.56, h.w * 0.44, 20,
-      'rgba(120,170,255,__A__)', 0.08 * s, 8, -0.02);
-  }
-  if (gfx.reflectionSources.hifi && state.musicOn) {
-    drawReflectionBlob(rx, d.x + d.w * 0.45, d.y + 22, d.w * 0.75, 22,
-      'rgba(100,220,255,__A__)', 0.10 * s, 8, 0.0);
-  }
-  rx.restore();
-}
-
-function renderReflectionPass() {
-  clearReflectionCanvas();
-  if (!gfx.reflections && !gfx.reflectionsPreview) return;
-  drawFloorWindowReflection();
-  drawFloorTvReflection();
-  drawFloorLampReflection();
-  drawTableReflections();
-  drawRackReflections();
-}
-
-function compositeReflections() {
-  if (!gfx.reflections) return;
-  // Soft screen pass — the main colour-light-on-surface feel
-  cx.save();
-  cx.globalAlpha = 1;
-  cx.globalCompositeOperation = 'screen';
-  cx.filter = 'blur(3px)';
-  cx.drawImage(reflectionCanvas, 0, 0, reflectionCanvas.width, reflectionCanvas.height, 0, 0, RW, RH);
-  cx.restore();
-  // Very tiny crisp lift — keeps table sheens attached, stays below mirror territory
-  cx.save();
-  cx.globalAlpha = 0.12;
-  cx.globalCompositeOperation = 'lighter';
-  cx.filter = 'none';
-  cx.drawImage(reflectionCanvas, 0, 0, reflectionCanvas.width, reflectionCanvas.height, 0, 0, RW, RH);
-  cx.restore();
-}
-
-// ── CONTACT SHADOW PASS ───────────────────────────────
-function clearShadowCanvas() {
-  configurePassCanvas(shadowCanvas);
-  sx.setTransform(1, 0, 0, 1, 0, 0);
-  sx.clearRect(0, 0, shadowCanvas.width, shadowCanvas.height);
-  resetPassContext(sx);
-}
-
-function drawShadowEllipse(ctx, x, y, w, h, alpha = 0.25, blur = 12) {
-  ctx.save();
-  ctx.filter = `blur(${blur}px)`;
-  ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-  ctx.beginPath();
-  ctx.ellipse(x, y, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-function drawContactShadow(ctx, x, y, w, h, tightAlpha = 0.32, softAlpha = 0.16) {
-  drawShadowEllipse(ctx, x, y, w * 1.25, h * 1.45, softAlpha  * gfx.aoStrength,      18);
-  drawShadowEllipse(ctx, x, y, w,        h,         tightAlpha * gfx.contactStrength,  7);
-}
-
-function drawAngledContactShadow(ctx, x, y, w, h, angle = 0, tightAlpha = 0.28, softAlpha = 0.13) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  drawShadowEllipse(ctx, 0, 0, w * 1.25, h * 1.45, softAlpha  * gfx.aoStrength,      18);
-  drawShadowEllipse(ctx, 0, 0, w,        h,         tightAlpha * gfx.contactStrength,  7);
-  ctx.restore();
-}
-
-function renderContactShadowPass() {
-  clearShadowCanvas();
-  if (!gfx.contactShadows && !gfx.contactPreview) return;
-
-  // Use source-over on a transparent canvas — we composite with multiply later.
-  // Keep individual alphas low so multiply doesn't crush the whole scene.
-  const sh = gfx.shadows;
-
-  if (sh.chair) {
-    drawAngledContactShadow(sx, 380, 902, 350, 82, -0.08, 0.28, 0.12);
-    drawAngledContactShadow(sx, 505, 865, 220, 46, -0.04, 0.18, 0.08);
-  }
-  if (sh.lamp) {
-    drawContactShadow(sx, 490, 694, 105, 30, 0.24, 0.09);
-    drawContactShadow(sx, 535, 742, 140, 34, 0.16, 0.07);
-  }
-  if (sh.hifi) {
-    drawAngledContactShadow(sx, 825, 744, 740, 54, 0.00, 0.26, 0.11);
-  }
-  if (sh.turntable && layout.recordPlayer) {
-    const r = layout.recordPlayer;
-    drawAngledContactShadow(sx, r.x + r.w * 0.52, r.y + r.h * 0.86, r.w * 0.92, r.h * 0.23, 0.02, 0.30, 0.10);
-  }
-  if (sh.headphones && layout.headphones) {
-    const r = layout.headphones;
-    drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.82, r.w * 0.72, r.h * 0.24, 0.04, 0.28, 0.08);
-  }
-  if (sh.tv && layout.tv) {
-    const r = layout.tv;
-    drawAngledContactShadow(sx, r.x + r.w * 0.52, r.y + r.h * 0.92, r.w * 0.88, r.h * 0.18, 0.02, 0.32, 0.12);
-    drawAngledContactShadow(sx, r.x + r.w * 0.58, r.y + r.h + 42,   r.w * 1.05, r.h * 0.25, 0.02, 0.14, 0.06);
-  }
-  if (sh.table && layout.table) {
-    const r = layout.table;
-    drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.82, r.w * 0.86, r.h * 0.18, 0.00, 0.24, 0.11);
-    drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.98, r.w * 0.82, r.h * 0.08, 0.00, 0.18, 0.08);
-  }
-  if (sh.mug && layout.mug) {
-    const r = layout.mug;
-    drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.84, r.w * 0.42, r.h * 0.16, 0.04, 0.36, 0.11);
-  }
-  if (sh.remote && layout.remote) {
-    const r = layout.remote;
-    drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.62, r.w * 0.30, r.h * 0.70, -0.10, 0.30, 0.08);
-  }
-  if (sh.books && layout.books) {
-    const r = layout.books;
-    drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.76, r.w * 0.86, r.h * 0.30, -0.04, 0.32, 0.11);
-  }
-  if (sh.holo && layout.cube) {
-    const r = layout.cube;
-    drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.92, r.w * 0.65, r.h * 0.18, 0.02, 0.30, 0.08);
-  }
-}
-
-function compositeContactShadows() {
-  if (!gfx.contactShadows) return;
-  cx.save();
-  cx.globalAlpha = 1;
-  cx.globalCompositeOperation = 'multiply';
-  cx.filter = 'none';
-  cx.drawImage(shadowCanvas, 0, 0, shadowCanvas.width, shadowCanvas.height, 0, 0, RW, RH);
-  cx.restore();
-}
+const { renderContactShadowPass, compositeContactShadows } = createContactShadowPass({
+  gfx,
+  layout,
+  RW,
+  RH,
+  sx,
+  shadowCanvas,
+  cx,
+  configurePassCanvas,
+  resetPassContext
+});
 
 function drawGraphicsDebugOverlay() {
   if (!gfx.debug) return;

@@ -73,6 +73,7 @@ const gfx = {
   supersampleScale: 1.25,
   renderQuality: true,
   qualityMode: '900p',
+  adaptiveQuality: true,
   renderScale: 1.0,
   lensTreatment: true,
   lensPreview: false,
@@ -194,6 +195,10 @@ const rcx = renderCanvas.getContext('2d');
 // Keep a stable reference to the visible context for interaction and CSS sizing
 const visibleCtx = canvas.getContext('2d');
 let frameCount = 0;
+let avgFrameMs = 16.7;
+let lowFpsStreak = 0;
+let highFpsStreak = 0;
+let adaptiveCooldown = 0;
 
 const QUALITY_MODES = {
   '720p':  { label: '720p Performance', scale: 2 / 3 },
@@ -1711,9 +1716,57 @@ function drawGraphicsDebugOverlay() {
   cx.fillStyle = 'rgba(220,230,255,0.9)';
   const qW = getRenderWidth(), qH = getRenderHeight();
   cx.fillText(`Quality: ${getQualityLabel()}   Scale: ${getRenderScale().toFixed(3)}   Internal: ${qW}×${qH}`, bx + 16, by + 1000);
+  cx.fillText(`Adaptive: ${gfx.adaptiveQuality ? 'ON' : 'OFF'}   Frame: ${avgFrameMs.toFixed(1)}ms`, bx + 16, by + 1018);
   cx.fillStyle = 'rgba(170,180,210,0.78)';
-  cx.fillText('Shift+Q cycle quality | F1 720p | F2 900p | F3 1080p', bx + 16, by + 1018);
+  cx.fillText('Shift+Q cycle quality | F1 720p | F2 900p | F3 1080p', bx + 16, by + 1036);
   cx.restore();
+}
+
+function applyAdaptiveQuality(dt) {
+  if (!gfx.adaptiveQuality || !gfx.renderQuality) return;
+  if (!dt || !Number.isFinite(dt)) return;
+
+  const frameMs = dt * 1000;
+  avgFrameMs = avgFrameMs * 0.92 + frameMs * 0.08;
+
+  if (adaptiveCooldown > 0) {
+    adaptiveCooldown -= dt;
+    return;
+  }
+
+  const lowThresholdMs = 24;   // ~42 FPS sustained
+  const highThresholdMs = 15;  // ~66 FPS sustained
+  const qualityOrder = ['720p', '900p', '1080p'];
+  const idx = qualityOrder.indexOf(gfx.qualityMode);
+  if (idx === -1) return;
+
+  if (avgFrameMs > lowThresholdMs) {
+    lowFpsStreak += 1;
+    highFpsStreak = 0;
+  } else if (avgFrameMs < highThresholdMs) {
+    highFpsStreak += 1;
+    lowFpsStreak = 0;
+  } else {
+    lowFpsStreak = 0;
+    highFpsStreak = 0;
+  }
+
+  if (lowFpsStreak >= 90 && idx > 0) {
+    gfx.qualityMode = qualityOrder[idx - 1];
+    lowFpsStreak = 0;
+    highFpsStreak = 0;
+    adaptiveCooldown = 4.0;
+    showLabel(`[ ADAPTIVE QUALITY: ${gfx.qualityMode.toUpperCase()} ]`, '#ffe7a8', 1.2);
+    return;
+  }
+
+  if (highFpsStreak >= 180 && idx < qualityOrder.length - 1) {
+    gfx.qualityMode = qualityOrder[idx + 1];
+    lowFpsStreak = 0;
+    highFpsStreak = 0;
+    adaptiveCooldown = 6.0;
+    showLabel(`[ ADAPTIVE QUALITY: ${gfx.qualityMode.toUpperCase()} ]`, '#b8f3ff', 1.2);
+  }
 }
 
 function getDebugRect(name) {
@@ -2681,6 +2734,7 @@ function render(ts) {
   updateClock(dt);
   updateParticles(dt);
   updateMicroMotion(dt);
+  applyAdaptiveQuality(dt);
 
   const ssInfo = beginSupersampledRender();
 

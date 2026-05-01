@@ -48,15 +48,17 @@ export function createContactShadowPass(deps) {
     const sh = gfx.shadows;
 
     if (sh.chair) {
-      drawAngledContactShadow(sx, 380, 902, 350, 82, -0.08, 0.28, 0.12);
-      drawAngledContactShadow(sx, 505, 865, 220, 46, -0.04, 0.18, 0.08);
+      drawShadowEllipse(sx, 380, 908, 520, 68, 0.08 * gfx.aoStrength, 36);
+      drawAngledContactShadow(sx, 380, 902, 350, 82, -0.08, 0.34, 0.15);
+      drawAngledContactShadow(sx, 505, 865, 220, 46, -0.04, 0.22, 0.10);
     }
     if (sh.lamp) {
       drawContactShadow(sx, 490, 694, 105, 30, 0.24, 0.09);
       drawContactShadow(sx, 535, 742, 140, 34, 0.16, 0.07);
     }
     if (sh.hifi) {
-      drawAngledContactShadow(sx, 825, 744, 740, 54, 0.00, 0.26, 0.11);
+      drawShadowEllipse(sx, 825, 748, 920, 52, 0.07 * gfx.aoStrength, 36);
+      drawAngledContactShadow(sx, 825, 744, 740, 54, 0.00, 0.32, 0.14);
     }
     if (sh.turntable && layout.recordPlayer) {
       const r = layout.recordPlayer;
@@ -68,13 +70,15 @@ export function createContactShadowPass(deps) {
     }
     if (sh.tv && layout.tv) {
       const r = layout.tv;
-      drawAngledContactShadow(sx, r.x + r.w * 0.52, r.y + r.h * 0.92, r.w * 0.88, r.h * 0.18, 0.02, 0.32, 0.12);
-      drawAngledContactShadow(sx, r.x + r.w * 0.58, r.y + r.h + 42, r.w * 1.05, r.h * 0.25, 0.02, 0.14, 0.06);
+      drawShadowEllipse(sx, r.x + r.w * 0.52, r.y + r.h + 58, r.w * 1.30, r.h * 0.26, 0.07 * gfx.aoStrength, 38);
+      drawAngledContactShadow(sx, r.x + r.w * 0.52, r.y + r.h * 0.92, r.w * 0.88, r.h * 0.18, 0.02, 0.38, 0.16);
+      drawAngledContactShadow(sx, r.x + r.w * 0.58, r.y + r.h + 42, r.w * 1.05, r.h * 0.25, 0.02, 0.18, 0.08);
     }
     if (sh.table && layout.table) {
       const r = layout.table;
-      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.82, r.w * 0.86, r.h * 0.18, 0.00, 0.24, 0.11);
-      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.98, r.w * 0.82, r.h * 0.08, 0.00, 0.18, 0.08);
+      drawShadowEllipse(sx, r.x + r.w * 0.50, r.y + r.h * 0.90, r.w * 1.12, r.h * 0.26, 0.07 * gfx.aoStrength, 36);
+      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.82, r.w * 0.86, r.h * 0.18, 0.00, 0.30, 0.14);
+      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.98, r.w * 0.82, r.h * 0.08, 0.00, 0.22, 0.10);
     }
     if (sh.mug && layout.mug) {
       const r = layout.mug;

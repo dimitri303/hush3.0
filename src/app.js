@@ -3,6 +3,8 @@ import { images, loadAssets } from './assets/loader.js';
 import { createLayout, hotspots, tracks } from './scene/config.js';
 import { clamp, lerp, ease, rr, gaussian, mixColor } from './core/math.js';
 import { setupDebugControls } from './debug/controls.js';
+import { createBloomPass } from './render/passes/bloom.js';
+import { createAtmospherePass } from './render/passes/atmosphere.js';
 
 const VERSION = 'A2.3-CINEMATIC-VISUAL-PASS';
 const BUILD_STAMP = 'A2.3-CINEMATIC-VISUAL-PASS | 2026-04-28 19:27:56 UTC';
@@ -1403,281 +1405,37 @@ function drawCityLayer(x, y, w, h, offset, heightScale, hMult, alpha, col) {
 }
 
 
-// ── BLOOM PASS ────────────────────────────────────────
-function clearBloomCanvas() {
-  configurePassCanvas(glowCanvas);
-  gx.setTransform(1, 0, 0, 1, 0, 0);
-  gx.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
-  resetPassContext(gx);
-}
+// ── BLOOM + ATMOSPHERE PASSES ─────────────────────────
+const { renderBloomPass, compositeBloom } = createBloomPass({
+  gfx,
+  layout,
+  state,
+  RW,
+  RH,
+  gx,
+  glowCanvas,
+  cx,
+  scaledPx,
+  configurePassCanvas,
+  resetPassContext,
+  timeProfile,
+  neonAnchors: NEON_ANCHORS
+});
 
-function compositeBloom() {
-  if (!gfx.bloom) return;
-  cx.save();
-  cx.globalAlpha = gfx.bloomStrength;
-  cx.globalCompositeOperation = 'screen';
-  cx.filter = `blur(${scaledPx(gfx.bloomBlur).toFixed(1)}px)`;
-  cx.drawImage(glowCanvas, 0, 0, glowCanvas.width, glowCanvas.height, 0, 0, RW, RH);
-  cx.restore();
-  // Small crisp emissive lift
-  cx.save();
-  cx.globalAlpha = Math.min(0.18, gfx.bloomStrength * 0.25);
-  cx.globalCompositeOperation = 'lighter';
-  cx.filter = 'none';
-  cx.drawImage(glowCanvas, 0, 0, glowCanvas.width, glowCanvas.height, 0, 0, RW, RH);
-  cx.restore();
-}
-
-function drawBloomWindow() {
-  if (!gfx.sources.window) return;
-  const { x, y, w, h } = layout.win;
-  const pulse = (0.92 + Math.sin(state.t * 1.4) * 0.08) * (microEnabled() ? micro.neonPulse : 1);
-  gx.save();
-  gx.globalCompositeOperation = 'lighter';
-  // Side neon strips
-  gx.fillStyle = `rgba(190,95,255,${0.55 * pulse})`;
-  gx.fillRect(x - 13, y - 3, 5, h + 6);
-  gx.fillRect(x + w + 8, y - 3, 5, h + 6);
-  // Top edge glow
-  const topG = gx.createLinearGradient(0, y - 8, 0, y + 16);
-  topG.addColorStop(0,   'rgba(255,255,255,0)');
-  topG.addColorStop(0.5, `rgba(210,120,255,${0.45 * pulse})`);
-  topG.addColorStop(1,   'rgba(255,255,255,0)');
-  gx.fillStyle = topG;
-  gx.fillRect(x, y - 10, w, 28);
-  // Bottom sill glow
-  gx.fillStyle = `rgba(190,80,255,${0.28 * pulse})`;
-  gx.fillRect(x, y + h - 3, w, 5);
-  gx.restore();
-}
-
-function drawBloomTV() {
-  if (!gfx.sources.tv || !state.tvOn) return;
-  const s = layout.screen;
-  const origin = layout.tvGlowOrigin || { x: s.x + s.w / 2, y: s.y + s.h / 2 };
-  const tvMul = microEnabled() ? micro.tvPulse : 1;
-  gx.save();
-  gx.globalCompositeOperation = 'lighter';
-  const g = gx.createRadialGradient(
-    s.x + s.w * 0.5, s.y + s.h * 0.5, 2,
-    s.x + s.w * 0.5, s.y + s.h * 0.5, s.w * 0.95
-  );
-  g.addColorStop(0,    `rgba(140,190,255,${(0.55 * tvMul).toFixed(3)})`);
-  g.addColorStop(0.45, `rgba(100,150,255,${(0.20 * tvMul).toFixed(3)})`);
-  g.addColorStop(1,    'rgba(100,150,255,0)');
-  gx.fillStyle = g;
-  gx.fillRect(s.x - s.w * 0.4, s.y - s.h * 0.4, s.w * 1.8, s.h * 1.8);
-  gx.fillStyle = `rgba(170,210,255,${(0.18 * tvMul).toFixed(3)})`;
-  gx.fillRect(s.x, s.y, s.w, s.h);
-  const spill = gx.createRadialGradient(origin.x, origin.y + 120, 5, origin.x, origin.y + 120, 180);
-  spill.addColorStop(0, `rgba(100,140,255,${(0.13 * tvMul).toFixed(3)})`);
-  spill.addColorStop(1, 'rgba(100,140,255,0)');
-  gx.fillStyle = spill;
-  gx.fillRect(origin.x - 200, origin.y - 10, 400, 260);
-  gx.restore();
-}
-
-function drawBloomHolo() {
-  if (!gfx.sources.holo) return;
-  const r = layout.cube;
-  const cx0 = r.x + r.w * 0.5;
-  const cy0 = r.y + r.h * 0.35 + Math.sin(state.t * 1.8) * 1.7;
-  const holoMul = microEnabled() ? micro.holoPulseMul : 1;
-  const pulse = (0.75 + Math.sin(state.t * 2.5) * 0.15 + (state.holoPulse || 0) * 0.35) * holoMul;
-  gx.save();
-  gx.globalCompositeOperation = 'lighter';
-  const g = gx.createRadialGradient(cx0, cy0, 2, cx0, cy0, r.w * 2.0);
-  g.addColorStop(0,    `rgba(180,145,255,${0.55 * pulse})`);
-  g.addColorStop(0.35, `rgba(150,100,255,${0.25 * pulse})`);
-  g.addColorStop(1,     'rgba(150,100,255,0)');
-  gx.fillStyle = g;
-  gx.fillRect(cx0 - r.w * 2, cy0 - r.h * 1.2, r.w * 4, r.h * 2.8);
-  gx.strokeStyle = `rgba(210,180,255,${0.65 * pulse})`;
-  gx.lineWidth = Math.max(1, r.w * 0.025);
-  gx.strokeRect(r.x + r.w * 0.28, r.y + r.h * 0.08, r.w * 0.44, r.h * 0.34);
-  gx.restore();
-}
-
-function drawBloomHifi() {
-  if (!gfx.sources.hifi || !state.musicOn) return;
-  const d = layout.rackDisplay;
-  gx.save();
-  gx.globalCompositeOperation = 'lighter';
-  gx.fillStyle = 'rgba(120,220,255,0.55)';
-  gx.fillRect(d.x, d.y, d.w, Math.max(3, d.h));
-  const ledY = d.y + 35;
-  for (let i = 0; i < 5; i++) {
-    const lx = d.x - 22 + i * 38;
-    const a = i === state.musicTrack ? 0.65 : 0.25;
-    gx.fillStyle = `rgba(255,120,90,${a})`;
-    gx.beginPath();
-    gx.arc(lx, ledY, 3, 0, Math.PI * 2);
-    gx.fill();
-  }
-  gx.restore();
-}
-
-function drawBloomCity() {
-  if (!gfx.sources.city) return;
-  const { x, y, w, h } = layout.win;
-  const tp = timeProfile();
-  const intensity = 0.10 + tp.sunset * 0.15 + tp.night * 0.35;
-  gx.save();
-  gx.beginPath(); gx.rect(x, y, w, h); gx.clip();
-  gx.globalCompositeOperation = 'lighter';
-  const horizonY = y + h * 0.72;
-  const horizon = gx.createRadialGradient(x + w * 0.5, horizonY, 10, x + w * 0.5, horizonY, w * 0.65);
-  horizon.addColorStop(0,   `rgba(210,40,255,${0.18 * intensity})`);
-  horizon.addColorStop(0.4, `rgba(80,180,255,${0.10 * intensity})`);
-  horizon.addColorStop(1,    'rgba(80,180,255,0)');
-  gx.fillStyle = horizon;
-  gx.fillRect(x, y, w, h);
-  if (typeof NEON_ANCHORS !== 'undefined') {
-    NEON_ANCHORS.forEach(n => {
-      const nx  = x + n.x * w;
-      const ny1 = y + n.yt * h;
-      const ny2 = y + n.yb * h;
-      gx.fillStyle = `rgba(${n.r},${n.g},${n.b},${intensity * 0.55})`;
-      gx.fillRect(nx - 2, ny1, 4, ny2 - ny1);
-    });
-  }
-  gx.restore();
-}
-
-function renderBloomPass() {
-  clearBloomCanvas();
-  if (!gfx.bloom && !gfx.bloomPreview) return;
-  drawBloomCity();
-  drawBloomWindow();
-  drawBloomTV();
-  drawBloomHolo();
-  drawBloomHifi();
-}
-
-// ── ATMOSPHERIC PERSPECTIVE PASS ─────────────────────
-function clearAtmosphereCanvas() {
-  configurePassCanvas(airCanvas);
-  ax.setTransform(1, 0, 0, 1, 0, 0);
-  ax.clearRect(0, 0, airCanvas.width, airCanvas.height);
-  resetPassContext(ax);
-}
-
-function drawSoftAtmosphereBlob(ctx, x, y, r, innerRGBA, outerRGBA = 'rgba(0,0,0,0)') {
-  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, innerRGBA);
-  g.addColorStop(1, outerRGBA);
-  ctx.fillStyle = g;
-  ctx.fillRect(x - r, y - r, r * 2, r * 2);
-}
-
-function drawAtmosphereGradient(ctx, x, y, w, h, stops) {
-  const g = ctx.createLinearGradient(x, y, x, y + h);
-  stops.forEach(([p, c]) => g.addColorStop(p, c));
-  ctx.fillStyle = g;
-  ctx.fillRect(x, y, w, h);
-}
-
-function drawAtmosphereBackFog() {
-  if (gfx.backFogStrength <= 0) return;
-  ax.save();
-  ax.globalCompositeOperation = 'screen';
-  // Soft purple depth behind the midground — keep it away from the actual window
-  const g = ax.createLinearGradient(0, RH * 0.18, 0, RH * 0.72);
-  g.addColorStop(0,    'rgba(255,255,255,0)');
-  g.addColorStop(0.35, `rgba(70,55,110,${0.028 * gfx.backFogStrength})`);
-  g.addColorStop(0.75, `rgba(95,70,145,${0.060 * gfx.backFogStrength})`);
-  g.addColorStop(1,    'rgba(255,255,255,0)');
-  ax.fillStyle = g;
-  ax.fillRect(0, RH * 0.16, RW, RH * 0.60);
-  // Very faint radial around the window zone — only affects the room air, not the glass
-  const w = layout.win;
-  const glow = ax.createRadialGradient(
-    w.x + w.w * 0.5, w.y + w.h * 0.72, 20,
-    w.x + w.w * 0.5, w.y + w.h * 0.72, w.w * 0.65
-  );
-  glow.addColorStop(0,    `rgba(110,85,165,${0.055 * gfx.backFogStrength})`);
-  glow.addColorStop(0.5,  `rgba(90,70,145,${0.030 * gfx.backFogStrength})`);
-  glow.addColorStop(1,     'rgba(90,70,145,0)');
-  ax.fillStyle = glow;
-  ax.fillRect(w.x - w.w * 0.25, w.y + w.h * 0.30, w.w * 1.5, w.h * 1.2);
-  ax.restore();
-}
-
-function drawAtmosphereMidDistance() {
-  if (gfx.midHazeStrength <= 0) return;
-  ax.save();
-  ax.globalCompositeOperation = 'screen';
-  // Broad atmospheric band through the midground — rack / chair zone
-  const band = ax.createLinearGradient(0, RH * 0.42, 0, RH * 0.86);
-  band.addColorStop(0,    'rgba(255,255,255,0)');
-  band.addColorStop(0.28, `rgba(75,58,118,${0.038 * gfx.midHazeStrength})`);
-  band.addColorStop(0.62, `rgba(110,82,160,${0.075 * gfx.midHazeStrength})`);
-  band.addColorStop(1,    'rgba(255,255,255,0)');
-  ax.fillStyle = band;
-  ax.fillRect(0, RH * 0.40, RW, RH * 0.50);
-  // Soft pool in the centre of the room — slowly drifts with micro-motion
-  const dx = microEnabled() ? micro.hazeDriftX : 0;
-  const dy = microEnabled() ? micro.hazeDriftY : 0;
-  drawSoftAtmosphereBlob(
-    ax, RW * 0.53 + dx, RH * 0.67 + dy, RW * 0.32,
-    `rgba(110,80,155,${0.075 * gfx.midHazeStrength})`
-  );
-  ax.restore();
-}
-
-function drawAtmosphereFloorHaze() {
-  if (gfx.floorHazeStrength <= 0) return;
-  ax.save();
-  ax.globalCompositeOperation = 'screen';
-  // Floor-level depth — separated from the midground band
-  const g = ax.createLinearGradient(0, RH * 0.60, 0, RH);
-  g.addColorStop(0,    'rgba(255,255,255,0)');
-  g.addColorStop(0.36, `rgba(75,58,115,${0.030 * gfx.floorHazeStrength})`);
-  g.addColorStop(0.72, `rgba(110,82,150,${0.062 * gfx.floorHazeStrength})`);
-  g.addColorStop(1,    `rgba(130,98,170,${0.090 * gfx.floorHazeStrength})`);
-  ax.fillStyle = g;
-  ax.fillRect(0, RH * 0.58, RW, RH * 0.42);
-  // Pool near the rug
-  drawSoftAtmosphereBlob(
-    ax, RW * 0.52, RH * 0.86, RW * 0.40,
-    `rgba(120,92,165,${0.090 * gfx.floorHazeStrength})`
-  );
-  // Faint lift around the table base
-  if (layout.table) {
-    const t = layout.table;
-    drawSoftAtmosphereBlob(
-      ax, t.x + t.w * 0.50, t.y + t.h * 0.80, t.w * 0.50,
-      `rgba(125,96,170,${0.068 * gfx.floorHazeStrength})`
-    );
-  }
-  ax.restore();
-}
-
-function renderAtmospherePass() {
-  clearAtmosphereCanvas();
-  if (!gfx.atmosphere && !gfx.atmospherePreview) return;
-  drawAtmosphereBackFog();
-  drawAtmosphereMidDistance();
-  drawAtmosphereFloorHaze();
-}
-
-function compositeAtmosphere() {
-  if (!gfx.atmosphere) return;
-  // Blurred screen pass — the main depth air feel
-  cx.save();
-  cx.globalAlpha = 1;
-  cx.globalCompositeOperation = 'screen';
-  cx.filter = `blur(${scaledPx(8).toFixed(1)}px)`;
-  cx.drawImage(airCanvas, 0, 0, airCanvas.width, airCanvas.height, 0, 0, RW, RH);
-  cx.restore();
-  // Very faint unblurred pass — just a touch of body, won't make things milky
-  cx.save();
-  cx.globalAlpha = 0.12;
-  cx.globalCompositeOperation = 'source-over';
-  cx.filter = 'none';
-  cx.drawImage(airCanvas, 0, 0, airCanvas.width, airCanvas.height, 0, 0, RW, RH);
-  cx.restore();
-}
+const { renderAtmospherePass, compositeAtmosphere } = createAtmospherePass({
+  gfx,
+  layout,
+  RW,
+  RH,
+  ax,
+  airCanvas,
+  cx,
+  scaledPx,
+  configurePassCanvas,
+  resetPassContext,
+  microEnabled,
+  micro
+});
 
 // ── LIGHT WRAP PASS ───────────────────────────────────
 function clearLightCanvas() {

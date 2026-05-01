@@ -45,11 +45,20 @@ export function createAtmospherePass(deps) {
       w.x + w.w * 0.5, w.y + w.h * 0.72, 20,
       w.x + w.w * 0.5, w.y + w.h * 0.72, w.w * 0.65
     );
-    glow.addColorStop(0, `rgba(110,85,165,${0.055 * gfx.backFogStrength})`);
-    glow.addColorStop(0.5, `rgba(90,70,145,${0.030 * gfx.backFogStrength})`);
+    glow.addColorStop(0, `rgba(110,85,165,${0.068 * gfx.backFogStrength})`);
+    glow.addColorStop(0.5, `rgba(90,70,145,${0.040 * gfx.backFogStrength})`);
     glow.addColorStop(1, 'rgba(90,70,145,0)');
     ax.fillStyle = glow;
     ax.fillRect(w.x - w.w * 0.25, w.y + w.h * 0.30, w.w * 1.5, w.h * 1.2);
+    const skyDepth = ax.createRadialGradient(
+      w.x + w.w * 0.50, w.y + w.h * 0.40, w.w * 0.15,
+      w.x + w.w * 0.50, w.y + w.h * 0.40, w.w * 1.05
+    );
+    skyDepth.addColorStop(0,    `rgba(85,125,215,${0.042 * gfx.backFogStrength})`);
+    skyDepth.addColorStop(0.45, `rgba(65,100,190,${0.018 * gfx.backFogStrength})`);
+    skyDepth.addColorStop(1,    'rgba(65,100,190,0)');
+    ax.fillStyle = skyDepth;
+    ax.fillRect(w.x - w.w * 0.55, w.y - w.h * 0.25, w.w * 2.1, w.h * 1.7);
     ax.restore();
   }
 

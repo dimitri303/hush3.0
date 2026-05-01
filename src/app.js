@@ -122,6 +122,23 @@ const gfx = {
   }
 };
 
+const THEMES = {
+  classic: {
+    stroke: (a) => `rgba(190,160,255,${a})`,
+    fill:   (a) => `rgba(190,160,255,${a})`,
+    glow:   (a) => `rgba(150,110,255,${a})`,
+    filter: '',
+  },
+  'cool-world': {
+    stroke: (a) => `rgba(0,240,255,${a})`,
+    fill:   (a) => `rgba(255,0,185,${a})`,
+    glow:   (a) => `rgba(140,0,255,${a})`,
+    filter: 'contrast(1.32) saturate(1.58) hue-rotate(4deg) brightness(0.90) ',
+  },
+};
+
+const themeTransition = { active: false, t: 0, dur: 0.44 };
+
 // Offscreen bloom canvas
 const glowCanvas = document.createElement('canvas');
 glowCanvas.width  = RW;
@@ -2244,10 +2261,11 @@ function drawCube() {
   state.holoPulse = Math.max(0, state.holoPulse - 0.02);
   const alpha = 0.5 + Math.sin(state.t * 2.5) * 0.08 + state.holoPulse * 0.25;
 
+  const th = THEMES[state.theme] || THEMES.classic;
   cx.save();
   cx.translate(cx0, cy0);
-  cx.strokeStyle = `rgba(190,160,255,${alpha})`;
-  cx.fillStyle = `rgba(190,160,255,${0.08 + state.holoPulse * 0.09})`;
+  cx.strokeStyle = th.stroke(alpha);
+  cx.fillStyle   = th.fill(0.08 + state.holoPulse * 0.09);
   cx.lineWidth = Math.max(1.1, r.w * 0.025);
 
   const s = r.w * 0.28 + state.holoPulse * 3;
@@ -2273,7 +2291,7 @@ function drawCube() {
   const glowR = r.w * 1.2;
   const glowY = cy0 + r.h * 0.25;
   const glow = cx.createRadialGradient(cx0, glowY, 2, cx0, glowY, glowR);
-  glow.addColorStop(0, `rgba(150,110,255,${0.16 + state.holoPulse * 0.1})`);
+  glow.addColorStop(0, th.glow(0.16 + state.holoPulse * 0.1));
   glow.addColorStop(1, 'transparent');
   cx.fillStyle = glow;
   cx.fillRect(cx0 - glowR, cy0 - r.h * 0.15, glowR * 2, r.h * 1.35);
@@ -2763,6 +2781,7 @@ function render(ts) {
   updateClock(dt);
   updateParticles(dt);
   updateMicroMotion(dt);
+  if (themeTransition.active) themeTransition.t += dt;
   applyAdaptiveQuality(dt);
   const passIntervals = getAdaptiveIntervals();
   contactPassTimer += dt;
@@ -2913,6 +2932,7 @@ function render(ts) {
     resetCtx(); compositeLensTreatment();
   }
 
+  resetCtx(); drawThemeTransitionOverlay();
   resetCtx(); drawFocusHighlight();
   resetCtx(); drawDebugLayout();
   resetCtx(); drawScaleGuides();
@@ -2961,7 +2981,10 @@ function updateUiState() {
   document.querySelectorAll('[data-source]').forEach(el => el.classList.toggle('on', el.dataset.source === state.musicSource));
   document.querySelectorAll('[data-tvch]').forEach(el => el.classList.toggle('on', +el.dataset.tvch === state.tvCh));
   document.querySelectorAll('[data-weather]').forEach(el => el.classList.toggle('on', !!state.weather[el.dataset.weather]));
-  document.querySelectorAll('[data-mood]').forEach(el => el.classList.toggle('on', el.dataset.mood === state.mood));
+  document.querySelectorAll('[data-theme]').forEach(el => el.classList.toggle('on', el.dataset.theme === state.theme));
+  const themeOverlayEl = document.getElementById('themeOverlay');
+  if (themeOverlayEl) themeOverlayEl.classList.toggle('active', state.theme === 'cool-world');
+  applyFocusTransform();
   UI.musicPow.classList.toggle('on', state.musicOn);
   UI.tvPow.classList.toggle('on', state.tvOn);
   UI.winToggle.classList.toggle('on', state.winOpen);
@@ -2980,18 +3003,80 @@ function updateUiState() {
   }
 }
 
+function applyTheme(newTheme) {
+  if (state.theme === newTheme) return;
+  state.theme = newTheme;
+  state.holoPulse = 1;
+  themeTransition.active = true;
+  themeTransition.t = 0;
+  updateUiState();
+}
+
+function drawThemeTransitionOverlay() {
+  if (!themeTransition.active) return;
+
+  const p = Math.min(1, themeTransition.t / themeTransition.dur);
+  if (p >= 1) {
+    themeTransition.active = false;
+    return;
+  }
+
+  cx.save();
+  cx.globalCompositeOperation = 'source-over';
+
+  // Phase 1 — dim: rises to peak at p=0.22, gone by p=0.56
+  const dimAlpha = p < 0.22
+    ? (p / 0.22) * 0.38
+    : p < 0.56
+      ? ((0.56 - p) / 0.34) * 0.38
+      : 0;
+
+  if (dimAlpha > 0.003) {
+    cx.globalAlpha = dimAlpha;
+    cx.fillStyle = '#030108';
+    cx.fillRect(0, 0, RW, RH);
+    cx.globalAlpha = 1;
+  }
+
+  // Phase 2 — radial wipe: clear circle expands from window centre outward
+  // starts at p=0.10, completes at p=1.0
+  if (p > 0.10) {
+    const sweepRaw = (p - 0.10) / 0.90;
+    const swept = 1 - Math.pow(1 - sweepRaw, 2.5); // ease-out
+    const wx = layout.win ? layout.win.x + layout.win.w * 0.50 : RW * 0.50;
+    const wy = layout.win ? layout.win.y + layout.win.h * 0.28 : RH * 0.25;
+    const maxR = Math.hypot(RW, RH) * 0.70;
+    const currentR = swept * maxR;
+    const feather = maxR * 0.18;
+    const veilAlpha = (1 - swept) * 0.30;
+
+    if (veilAlpha > 0.004) {
+      const r0 = Math.max(0, currentR - feather);
+      const r1 = currentR + feather * 0.45;
+      const g = cx.createRadialGradient(wx, wy, r0, wx, wy, r1);
+      g.addColorStop(0, 'rgba(3,1,8,0)');
+      g.addColorStop(1, `rgba(3,1,8,${veilAlpha.toFixed(3)})`);
+      cx.fillStyle = g;
+      cx.fillRect(0, 0, RW, RH);
+    }
+  }
+
+  cx.restore();
+}
+
 function applyFocusTransform(instant = false) {
   // Slow, breathing transitions — this is a relaxing space
   canvas.style.transition = instant
     ? 'none'
     : state.focus
       ? 'transform 1.1s cubic-bezier(0.16, 1, 0.3, 1), filter 1.1s ease'
-      : 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1), filter 0.85s ease';
+      : 'transform 0.85s cubic-bezier(0.16, 1, 0.3, 1), filter 0.4s ease';
 
+  const themeFilter = THEMES[state.theme]?.filter ?? '';
   if (!state.focus) {
     canvas.style.transformOrigin = '0 0';
     canvas.style.transform = 'translate(0px,0px) scale(1)';
-    canvas.style.filter = 'none';
+    canvas.style.filter = themeFilter || 'none';
     return;
   }
   const h = hotspots.find(s => s.id === state.focus);
@@ -3009,8 +3094,8 @@ function applyFocusTransform(instant = false) {
   canvas.style.transformOrigin = '0 0';
   canvas.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
   canvas.style.filter = state.focus === 'window'
-    ? 'brightness(1.04) contrast(1.03) drop-shadow(0 0 30px rgba(122,190,255,.18))'
-    : 'brightness(1.03) contrast(1.02) drop-shadow(0 0 28px rgba(178,130,255,.16))';
+    ? `${themeFilter}brightness(1.04) contrast(1.03) drop-shadow(0 0 30px rgba(122,190,255,.18))`
+    : `${themeFilter}brightness(1.03) contrast(1.02) drop-shadow(0 0 28px rgba(178,130,255,.16))`;
 }
 
 function setFocus(id) {
@@ -3024,7 +3109,7 @@ function setFocus(id) {
   if (id === 'tv') showLabel('[ CLICK TV TO CHANGE CHANNEL ]', '#b4f2ff', 1.8);
   if (id === 'hifi') showLabel('[ CLICK HI-FI TO CHANGE SOURCE ]', '#ffd8ff', 1.8);
   if (id === 'window') showLabel('[ WINDOW / WEATHER ]', '#c7f0ff', 1.4);
-  if (id === 'holo') showLabel('[ HOLOCUBE / MOOD ]', '#d8c2ff', 1.4);
+  if (id === 'holo') showLabel('[ HOLOCUBE / THEME ]', '#d8c2ff', 1.4);
 }
 
 function hitTest(clientX, clientY) {
@@ -3055,7 +3140,8 @@ setupUiControls({
   hitTest,
   setFocus,
   updateUiState,
-  showLabel
+  showLabel,
+  applyTheme
 });
 
 state.toggleAdaptiveQuality = () => {

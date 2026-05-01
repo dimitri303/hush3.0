@@ -51,6 +51,8 @@
   .sub{margin-top:10px;font-size:12px;letter-spacing:.3em;color:#8ca1bc;text-align:center}
   .loader{position:absolute;bottom:15vh;font-size:11px;letter-spacing:.18em;color:#a6b6c8}
   a,button,input{font:inherit}
+  #themeOverlay{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s ease;background:linear-gradient(145deg,rgba(100,0,200,.10) 0%,rgba(220,0,110,.07) 45%,rgba(0,140,255,.08) 100%);mix-blend-mode:overlay}
+  #themeOverlay.active{opacity:1}
   @media (max-width:720px){
     #clock{min-width:116px;padding:8px 10px}
     #clock .time{font-size:22px}
@@ -120,15 +122,14 @@
         </div>
       </div>
       <div class="fcard" id="holoUi">
-        <div class="ftitle">── HOLOCUBE / MOOD ──</div>
+        <div class="ftitle">── HOLOCUBE / THEME ──</div>
         <div class="frow">
-          <div class="chip on" data-mood="calm">CALM</div>
-          <div class="chip" data-mood="rain">RAIN</div>
-          <div class="chip" data-mood="neon">NEON</div>
-          <div class="chip" data-mood="midnight">MIDNIGHT</div>
+          <div class="chip on" data-theme="classic">CLASSIC</div>
+          <div class="chip" data-theme="cool-world">COOL WORLD</div>
         </div>
       </div>
     </div>
+    <div id="themeOverlay"></div>
   </div>
   <div id="init">
     <div>

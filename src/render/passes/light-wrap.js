@@ -64,7 +64,8 @@ export function createLightWrapPass(deps) {
     const w = layout.win;
     drawLightBlob(lx, w.x + w.w * 0.62, w.y + w.h * 0.92, 760, 220, 'rgba(175,105,255,__A__)', 0.15 * gfx.wrapWindowStrength, 34, -0.05);
     drawLightBlob(lx, 1335, 620, 420, 180, 'rgba(175,105,255,__A__)', 0.18 * gfx.wrapWindowStrength, 26, -0.12);
-    drawLightBlob(lx, 940, 660, 520, 120, 'rgba(120,170,255,__A__)', 0.10 * gfx.wrapAmbientStrength, 24, -0.02);
+    drawLightBlob(lx, 940, 660, 520, 120, 'rgba(120,170,255,__A__)', 0.12 * gfx.wrapAmbientStrength, 24, -0.02);
+    drawLightBlob(lx, w.x + w.w * 0.52, RH * 0.80, 460, 110, 'rgba(145,190,255,__A__)', 0.08 * gfx.wrapWindowStrength, 28, -0.03);
     lx.restore();
   }
 

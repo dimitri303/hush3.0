@@ -44,7 +44,7 @@ export function createState() {
     timeBlend: { day: 0, sunset: 0, night: 1 },
     currentMinutes: 22 * 60 + 47,
     weather: { rain: true, snow: false, mist: false, thunderstorm: false },
-    mood: 'calm',
+    theme: 'classic',
     winOpen: false,
     winAnim: 0,
     leanOut: false,

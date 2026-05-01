@@ -9,7 +9,8 @@ export function setupUiControls(deps) {
     hitTest,
     setFocus,
     updateUiState,
-    showLabel
+    showLabel,
+    applyTheme
   } = deps;
 
   canvas.addEventListener('mousemove', (e) => {
@@ -51,12 +52,10 @@ export function setupUiControls(deps) {
         return;
       }
       if (hit.id === 'holo') {
-        const moods = ['calm', 'rain', 'neon', 'midnight'];
-        const i = moods.indexOf(state.mood);
-        state.mood = moods[(i + 1) % moods.length];
-        state.holoPulse = 1;
-        updateUiState();
-        showLabel(`[ ${state.mood.toUpperCase()} ]`, '#d8c2ff');
+        const themes = ['classic', 'cool-world'];
+        const next = themes[(themes.indexOf(state.theme) + 1) % themes.length];
+        applyTheme(next);
+        showLabel(`[ ${state.theme === 'cool-world' ? 'COOL WORLD' : 'CLASSIC'} ]`, '#d8c2ff');
         return;
       }
     }
@@ -114,11 +113,9 @@ export function setupUiControls(deps) {
     updateUiState();
   }));
 
-  document.querySelectorAll('[data-mood]').forEach((el) => el.addEventListener('click', () => {
-    state.mood = el.dataset.mood;
-    state.holoPulse = 1;
-    updateUiState();
-    showLabel(`[ ${state.mood.toUpperCase()} ]`, '#d8c2ff');
+  document.querySelectorAll('[data-theme]').forEach((el) => el.addEventListener('click', () => {
+    applyTheme(el.dataset.theme);
+    showLabel(`[ ${state.theme === 'cool-world' ? 'COOL WORLD' : 'CLASSIC'} ]`, '#d8c2ff');
   }));
 
   if (UI.adaptiveToggle) {

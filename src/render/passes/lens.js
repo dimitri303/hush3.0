@@ -118,6 +118,24 @@ export function createLensPass(deps) {
     lnx.restore();
   }
 
+  function drawCoolWorldInkBoost() {
+    if (state.theme !== 'cool-world') return;
+    if (!grainPattern) {
+      regenerateGrainTile();
+      grainPattern = lnx.createPattern(grainTileCanvas, 'repeat');
+    }
+    if (!grainPattern) return;
+    lnx.save();
+    lnx.globalCompositeOperation = 'multiply';
+    lnx.globalAlpha = 0.022;
+    lnx.fillStyle = grainPattern;
+    const ox = Math.floor((state.t * 13) % 256);
+    const oy = Math.floor((state.t * 7) % 256);
+    lnx.translate(-ox, -oy);
+    lnx.fillRect(ox, oy, RW + 256, RH + 256);
+    lnx.restore();
+  }
+
   function renderLensPass() {
     clearLensCanvas();
     if (!gfx.lensTreatment && !gfx.lensPreview) return;
@@ -125,6 +143,7 @@ export function createLensPass(deps) {
     drawSimpleEdgeChroma();
     drawScanTexture();
     drawLensGrain();
+    drawCoolWorldInkBoost();
   }
 
   function compositeLensTreatment() {

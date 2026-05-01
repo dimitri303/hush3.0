@@ -53,14 +53,16 @@ export function createBloomPass(deps) {
   function drawBloomTV() {
     if (!gfx.sources.tv || !state.tvOn) return;
     const s = layout.screen;
+    const isCoolWorld = state.theme === 'cool-world';
+    const glowRgb = isCoolWorld ? '200,70,255' : '120,170,255';
     gx.save();
     gx.globalCompositeOperation = 'lighter';
     const glow = gx.createRadialGradient(
       s.x + s.w * 0.5, s.y + s.h * 0.6, 5,
       s.x + s.w * 0.5, s.y + s.h * 0.6, s.w * 1.6
     );
-    glow.addColorStop(0, 'rgba(120,170,255,0.22)');
-    glow.addColorStop(1, 'rgba(120,170,255,0)');
+    glow.addColorStop(0, `rgba(${glowRgb},0.22)`);
+    glow.addColorStop(1, `rgba(${glowRgb},0)`);
     gx.fillStyle = glow;
     gx.fillRect(s.x - s.w, s.y - s.h, s.w * 3, s.h * 3);
     gx.restore();
@@ -69,14 +71,22 @@ export function createBloomPass(deps) {
   function drawBloomHolo() {
     if (!gfx.sources.holo) return;
     const c = layout.cubeGlow || { x: 1320, y: 903 };
+    const isCoolWorld = state.theme === 'cool-world';
     gx.save();
     gx.globalCompositeOperation = 'lighter';
     const pulse = 0.65 + Math.sin(state.t * 2.2) * 0.35;
-    const r = gx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 56);
-    r.addColorStop(0, `rgba(180,140,255,${0.18 * pulse})`);
+    const glowR = isCoolWorld ? 92 : 56;
+    const r = gx.createRadialGradient(c.x, c.y, 0, c.x, c.y, glowR);
+    if (isCoolWorld) {
+      r.addColorStop(0,    `rgba(0,240,255,${0.32 * pulse})`);
+      r.addColorStop(0.42, `rgba(180,0,255,${0.20 * pulse})`);
+    } else {
+      r.addColorStop(0, `rgba(180,140,255,${0.18 * pulse})`);
+    }
     r.addColorStop(1, 'rgba(180,140,255,0)');
     gx.fillStyle = r;
-    gx.fillRect(c.x - 64, c.y - 64, 128, 128);
+    const fillR = isCoolWorld ? 104 : 64;
+    gx.fillRect(c.x - fillR, c.y - fillR, fillR * 2, fillR * 2);
     gx.restore();
   }
 

@@ -199,6 +199,11 @@ let avgFrameMs = 16.7;
 let lowFpsStreak = 0;
 let highFpsStreak = 0;
 let adaptiveCooldown = 0;
+let heavyPassTimer = 0;
+let lensPassTimer = 0;
+let lastClockMinute = -1;
+let lastTimeModeLabel = '';
+let lastTimeChip = '';
 
 const QUALITY_MODES = {
   '720p':  { label: '720p Performance', scale: 2 / 3 },
@@ -562,7 +567,11 @@ function updateClock(dt) {
 
   const h = Math.floor(state.currentMinutes / 60) % 24;
   const m = Math.floor(state.currentMinutes % 60);
-  UI.clkTxt.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  const minuteKey = h * 60 + m;
+  if (minuteKey !== lastClockMinute) {
+    lastClockMinute = minuteKey;
+    UI.clkTxt.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
 
   const hour = state.currentMinutes / 60;
   const day = gaussian(hour, 13, 4.4);
@@ -574,8 +583,15 @@ function updateClock(dt) {
   state.timeBlend.night = night / total;
 
   const mode = state.timeCycle ? 'CYCLE' : dominantTimeMode().toUpperCase();
-  UI.timeTxt.textContent = mode;
-  document.querySelectorAll('[data-time]').forEach(el => el.classList.toggle('on', el.dataset.time === (state.timeCycle ? 'cycle' : state.timeMode)));
+  if (mode !== lastTimeModeLabel) {
+    lastTimeModeLabel = mode;
+    UI.timeTxt.textContent = mode;
+  }
+  const activeChip = state.timeCycle ? 'cycle' : state.timeMode;
+  if (activeChip !== lastTimeChip) {
+    lastTimeChip = activeChip;
+    UI.timeChips.forEach((el) => el.classList.toggle('on', el.dataset.time === activeChip));
+  }
 }
 
 function dominantTimeMode() {
@@ -1769,6 +1785,14 @@ function applyAdaptiveQuality(dt) {
   }
 }
 
+function getAdaptiveIntervals() {
+  if (!gfx.adaptiveQuality) return { heavy: 1 / 30, lens: 1 / 20 };
+  if (avgFrameMs > 30) return { heavy: 1 / 12, lens: 1 / 10 };
+  if (avgFrameMs > 24) return { heavy: 1 / 18, lens: 1 / 14 };
+  if (avgFrameMs > 18) return { heavy: 1 / 24, lens: 1 / 18 };
+  return { heavy: 1 / 30, lens: 1 / 20 };
+}
+
 function getDebugRect(name) {
   if (name.startsWith('hit.')) {
     const id = name.split('.')[1];
@@ -2725,8 +2749,6 @@ function drawCinematicGradePass() {
 
 function render(ts) {
   frameCount += 1;
-  const updateHeavyPasses = (frameCount & 1) === 0; // every 2nd frame
-  const updateLensPass = (frameCount % 3) === 0; // every 3rd frame
 
   const dt = state.lastTs ? Math.min(0.033, (ts - state.lastTs) / 1000) : 0.016;
   state.lastTs = ts;
@@ -2735,6 +2757,13 @@ function render(ts) {
   updateParticles(dt);
   updateMicroMotion(dt);
   applyAdaptiveQuality(dt);
+  const passIntervals = getAdaptiveIntervals();
+  heavyPassTimer += dt;
+  lensPassTimer += dt;
+  const updateHeavyPasses = heavyPassTimer >= passIntervals.heavy;
+  const updateLensPass = lensPassTimer >= passIntervals.lens;
+  if (updateHeavyPasses) heavyPassTimer = 0;
+  if (updateLensPass) lensPassTimer = 0;
 
   const ssInfo = beginSupersampledRender();
 
@@ -3016,6 +3045,7 @@ setupUiControls({
   updateUiState,
   showLabel
 });
+
 
 
 // ── TEMP LAYOUT DEBUGGER CONTROLS ─────────────────────

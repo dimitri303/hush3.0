@@ -1,4 +1,5 @@
 export function createUi() {
+  const timeChips = Array.from(document.querySelectorAll('[data-time]'));
   return {
     label: document.getElementById('label'),
     back: document.getElementById('back'),
@@ -6,6 +7,7 @@ export function createUi() {
     clkTxt: document.getElementById('clkTxt'),
     timeTxt: document.getElementById('timeTxt'),
     timeUi: document.getElementById('timeUi'),
+    timeChips,
     init: document.getElementById('init'),
     loaderTxt: document.getElementById('loaderTxt'),
     hifiUi: document.getElementById('hifiUi'),

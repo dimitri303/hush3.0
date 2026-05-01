@@ -85,7 +85,6 @@ export function setupUiControls(deps) {
       showLabel(`[ ${mode.toUpperCase()} ]`, '#b4f2ff');
     });
   });
-
   document.querySelectorAll('[data-source]').forEach((el) => el.addEventListener('click', () => {
     state.musicSource = el.dataset.source;
     state.musicOn = true;

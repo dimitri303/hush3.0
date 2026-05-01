@@ -8,7 +8,7 @@ const DEFAULTS = {
   colourGrade: true, gradeStrength: 0.42, contrastStrength: 0.18, shadowTintStrength: 0.20, warmMidStrength: 0.12, cyanLiftStrength: 0.10, vignetteStrength: 0.34,
   lensTreatment: true, grain: true, chromaticAberration: true, halation: true, scanTexture: false,
   grainStrength: 0.042, chromaStrength: 0.35, halationStrength: 0.11,
-  microMotion: true, microMotionStrength: 0.55, neonBreathStrength: 0.35, lampFlickerStrength: 0.18, tvFlickerStrength: 0.28, hazeDriftStrength: 0.22, reflectionShimmerStrength: 0.24,
+  microMotion: true, microMotionStrength: 0.55, neonBreathStrength: 0.35, lampFlickerStrength: 0.18, tvFlickerStrength: 0.28, hazeDriftStrength: 0.22, reflectionShimmerStrength: 0.24, materialShimmerStrength: 0.12,
   depthPolish: true, depthStrength: 0.32, backgroundSoftness: 0.20, foregroundSoftness: 0.14, midgroundClarity: 0.18, depthVignetteStrength: 0.16,
   adaptiveQuality: true, qualityMode: '900p', supersampling: false, supersampleScale: 1.25,
   sources: { city: true, window: true, tv: true, holo: true, hifi: true },

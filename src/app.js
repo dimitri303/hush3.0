@@ -1465,6 +1465,15 @@ const micro = {
 
 function microEnabled() { return gfx.microMotion && gfx.microMotionStrength > 0; }
 
+// cx is a `let` that switches between rcx (renderCanvas, during frame) and visibleCtx
+// (after endSupersampledRender). Pass factories capture cx by value at init time, so
+// without a proxy every composite* function would draw to the stale visibleCtx and get
+// wiped by endSupersampledRender. cxProxy always forwards to the current cx target.
+const cxProxy = new Proxy({}, {
+  get(_t, prop) { const v = cx[prop]; return typeof v === 'function' ? v.bind(cx) : v; },
+  set(_t, prop, value) { cx[prop] = value; return true; }
+});
+
 // ── BLOOM + ATMOSPHERE PASSES ─────────────────────────
 const { renderBloomPass, compositeBloom } = createBloomPass({
   gfx,
@@ -1474,7 +1483,7 @@ const { renderBloomPass, compositeBloom } = createBloomPass({
   RH,
   gx,
   glowCanvas,
-  cx,
+  cx: cxProxy, // composite draws to current rcx, not stale visibleCtx
   scaledPx,
   configurePassCanvas,
   resetPassContext,
@@ -1489,7 +1498,7 @@ const { renderAtmospherePass, compositeAtmosphere } = createAtmospherePass({
   RH,
   ax,
   airCanvas,
-  cx,
+  cx: cxProxy,
   scaledPx,
   configurePassCanvas,
   resetPassContext,
@@ -1505,7 +1514,7 @@ const { renderLightWrapPass, compositeLightWrap } = createLightWrapPass({
   RH,
   lx,
   lightCanvas,
-  cx,
+  cx: cxProxy,
   configurePassCanvas,
   resetPassContext,
   microEnabled,
@@ -1519,7 +1528,7 @@ const { renderMaterialPass, compositeMaterialResponse } = createMaterialPass({
   RH,
   mx,
   materialCanvas,
-  cx,
+  cx: cxProxy,
   configurePassCanvas,
   resetPassContext,
   microEnabled,
@@ -1532,7 +1541,7 @@ const { renderColourGradePass, compositeColourGrade } = createColourGradePass({
   RH,
   grx,
   gradeCanvas,
-  cx,
+  cx: cxProxy,
   configurePassCanvas,
   resetPassContext,
   timeProfile
@@ -1598,7 +1607,7 @@ const { renderDepthPolishPass, compositeDepthPolish } = createDepthPolishPass({
   RH,
   dx,
   depthCanvas,
-  cx,
+  cx: cxProxy,
   configurePassCanvas,
   resetPassContext,
   timeProfile
@@ -1614,7 +1623,7 @@ const { renderLensPass, compositeLensTreatment } = createLensPass({
   glowCanvas,
   grainTileCanvas,
   ngx,
-  cx,
+  cx: cxProxy,
   scaledPx,
   configurePassCanvas,
   resetPassContext
@@ -1628,7 +1637,7 @@ const { renderReflectionPass, compositeReflections } = createReflectionPass({
   RH,
   rx,
   reflectionCanvas,
-  cx,
+  cx: cxProxy,
   configurePassCanvas,
   resetPassContext,
   microEnabled,
@@ -1642,10 +1651,19 @@ const { renderContactShadowPass, compositeContactShadows } = createContactShadow
   RH,
   sx,
   shadowCanvas,
-  cx,
+  cx: cxProxy,
   configurePassCanvas,
   resetPassContext
 });
+
+// All 9 pass composite functions receive cxProxy so they always draw to the active
+// render target (rcx during frame, visibleCtx after endSupersampledRender).
+// Pipeline order (each step composites onto rcx):
+//   room geometry → contact-shadows (multiply) → atmosphere (screen+source-over)
+//   → light-wrap (screen+lighter) → material (screen) → reflections (screen+lighter)
+//   → bloom (screen) → colour-grade (multiply/screen/soft-light) → depth-polish
+//   → lens-treatment → theme-transition → focus-highlight → [endSupersampledRender → visibleCtx]
+console.debug('[HUSH] cxProxy wired: composite passes target rcx during render, visibleCtx at rest.');
 
 function drawGraphicsDebugOverlay() {
   debugPanel.sync();
@@ -2826,7 +2844,7 @@ function render(ts) {
     cx.drawImage(shadowCanvas, 0, 0, shadowCanvas.width, shadowCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else {
-    resetCtx(); compositeContactShadows();
+    resetCtx(); compositeContactShadows(); // [1] shadowCanvas → rcx (multiply)
   }
 
   // Atmosphere pass — after shadows, before bloom
@@ -2839,7 +2857,7 @@ function render(ts) {
     cx.drawImage(airCanvas, 0, 0, airCanvas.width, airCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else if (!gfx.contactPreview) {
-    resetCtx(); compositeAtmosphere();
+    resetCtx(); compositeAtmosphere(); // [2] airCanvas → rcx (screen + source-over)
   }
 
   // Light wrap pass — after atmosphere, before bloom
@@ -2852,7 +2870,7 @@ function render(ts) {
     cx.drawImage(lightCanvas, 0, 0, lightCanvas.width, lightCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else if (!gfx.contactPreview && !gfx.atmospherePreview) {
-    resetCtx(); compositeLightWrap();
+    resetCtx(); compositeLightWrap(); // [3] lightCanvas → rcx (screen + lighter)
   }
 
   // Material response pass — after light wrap, before bloom
@@ -2865,7 +2883,7 @@ function render(ts) {
     cx.drawImage(materialCanvas, 0, 0, materialCanvas.width, materialCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else if (!gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview) {
-    resetCtx(); compositeMaterialResponse();
+    resetCtx(); compositeMaterialResponse(); // [4] materialCanvas → rcx (screen)
   }
 
   // Reflection pass — after material, before bloom
@@ -2878,7 +2896,7 @@ function render(ts) {
     cx.drawImage(reflectionCanvas, 0, 0, reflectionCanvas.width, reflectionCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else if (!gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview) {
-    resetCtx(); compositeReflections();
+    resetCtx(); compositeReflections(); // [5] reflectionCanvas → rcx (screen + lighter)
   }
 
   // Bloom — on top of everything
@@ -2890,7 +2908,7 @@ function render(ts) {
     cx.drawImage(glowCanvas, 0, 0, glowCanvas.width, glowCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else if (!gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview && !gfx.reflectionsPreview) {
-    resetCtx(); compositeBloom();
+    resetCtx(); compositeBloom(); // [6] glowCanvas → rcx (screen)
   }
 
   // Colour grade — final pass, after bloom, before debug overlays
@@ -2903,7 +2921,7 @@ function render(ts) {
     cx.drawImage(gradeCanvas, 0, 0, gradeCanvas.width, gradeCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else if (!gfx.gradePreview) {
-    resetCtx(); compositeColourGrade();
+    resetCtx(); compositeColourGrade(); // [7] gradeCanvas → rcx (multiply/screen/soft-light)
   }
 
   // Depth polish — after grade, before lens
@@ -2916,7 +2934,7 @@ function render(ts) {
     cx.drawImage(depthCanvas, 0, 0, depthCanvas.width, depthCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else if (!gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview && !gfx.reflectionsPreview && !gfx.bloomPreview && !gfx.gradePreview) {
-    resetCtx(); compositeDepthPolish();
+    resetCtx(); compositeDepthPolish(); // [8] depthCanvas → rcx (soft-light/overlay)
   }
 
   // Lens treatment — final optical pass, after grade, before debug
@@ -2929,7 +2947,7 @@ function render(ts) {
     cx.drawImage(lensCanvas, 0, 0, lensCanvas.width, lensCanvas.height, 0, 0, RW, RH);
     cx.restore();
   } else if (!gfx.contactPreview && !gfx.atmospherePreview && !gfx.lightWrapPreview && !gfx.materialPreview && !gfx.reflectionsPreview && !gfx.bloomPreview && !gfx.gradePreview && !gfx.depthPreview) {
-    resetCtx(); compositeLensTreatment();
+    resetCtx(); compositeLensTreatment(); // [9] lensCanvas → rcx (grain/chroma/halation)
   }
 
   resetCtx(); drawThemeTransitionOverlay();

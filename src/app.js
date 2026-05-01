@@ -3,6 +3,7 @@ import { images, loadAssets } from './assets/loader.js';
 import { createLayout, hotspots, tracks } from './scene/config.js';
 import { clamp, lerp, ease, rr, gaussian, mixColor } from './core/math.js';
 import { setupDebugControls } from './debug/controls.js';
+import { createDebugPanel } from './debug/panel.js';
 import { createBloomPass } from './render/passes/bloom.js';
 import { createAtmospherePass } from './render/passes/atmosphere.js';
 import { createLightWrapPass } from './render/passes/light-wrap.js';
@@ -196,6 +197,7 @@ const rcx = renderCanvas.getContext('2d');
 const visibleCtx = canvas.getContext('2d');
 let frameCount = 0;
 let avgFrameMs = 16.7;
+let debugPanel = { sync: () => {} };
 let lowFpsStreak = 0;
 let highFpsStreak = 0;
 let adaptiveCooldown = 0;
@@ -1629,6 +1631,10 @@ const { renderContactShadowPass, compositeContactShadows } = createContactShadow
 });
 
 function drawGraphicsDebugOverlay() {
+  debugPanel.sync();
+}
+
+function _unused_drawGraphicsDebugOverlay_legacy() {
   if (!gfx.debug) return;
   cx.save();
   resetLogicalTransform();
@@ -3082,8 +3088,14 @@ setupDebugControls({
   getDebugRect,
   formatDebugLine,
   showLabel,
+});
+
+debugPanel = createDebugPanel(gfx, {
+  getRenderWidth,
+  getRenderHeight,
   getRenderScale,
-  getQualityLabel
+  getQualityLabel,
+  getAvgFrameMs: () => avgFrameMs,
 });
 
 // ── SNOW SYSTEM ───────────────────────────────────────

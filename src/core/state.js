@@ -50,7 +50,7 @@ export function createState() {
     leanOut: false,
     lampOn: true,
     tvOn: true,
-    tvCh: 3,
+    tvCh: 1,
     tvFlicker: 0,
     musicOn: true,
     musicSource: 'vinyl',

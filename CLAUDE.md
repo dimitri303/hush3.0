@@ -57,3 +57,25 @@ Clicks on the canvas are routed through `src/ui/controls.js` against hotspot reg
 ### TypeScript configuration
 
 `tsconfig.json` uses `strict: false` with target ES2022. Most source files are `.js`; only the entry point is `.ts`. Type checking is lightweight — `pnpm typecheck` runs `tsc --noEmit`.
+
+## Project Vision
+
+Hush OS is an ambient second-monitor experience, not a normal app UI.
+
+It should feel calm, premium, cinematic and atmospheric.
+
+The room should feel inevitable, not obviously designed.
+
+Avoid obvious software UI tropes where possible.
+
+Prefer object-led interactions over cursor-led interactions.
+
+Make small, testable changes.
+
+Do not do large refactors unless explicitly asked.
+
+Before changing code, explain which file will change and why.
+
+Preserve the Canvas 2D architecture unless asked otherwise.
+
+The long-term goal includes music/radio playback and possible TV video channels.

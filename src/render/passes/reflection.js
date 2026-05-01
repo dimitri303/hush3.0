@@ -167,6 +167,19 @@ export function createReflectionPass(deps) {
     cx.filter = 'none';
     cx.drawImage(reflectionCanvas, 0, 0, reflectionCanvas.width, reflectionCanvas.height, 0, 0, RW, RH);
     cx.restore();
+    if (gfx.reflectionSources.window || gfx.reflectionSources.city) {
+      const s = gfx.floorReflectionStrength;
+      cx.save();
+      cx.globalCompositeOperation = 'screen';
+      const g = cx.createRadialGradient(RW * 0.51, RH * 0.80, 0, RW * 0.51, RH * 0.80, 370);
+      g.addColorStop(0.00, `rgba(200,185,255,${(0.055 * s).toFixed(3)})`);
+      g.addColorStop(0.18, `rgba(175,155,255,${(0.022 * s).toFixed(3)})`);
+      g.addColorStop(1.00, 'rgba(175,155,255,0)');
+      cx.fillStyle = g;
+      cx.transform(1, 0, 0, 0.22, 0, RH * 0.80 * 0.78);
+      cx.fillRect(RW * 0.25, 0, RW * 0.50, RH);
+      cx.restore();
+    }
   }
 
   return { renderReflectionPass, compositeReflections };

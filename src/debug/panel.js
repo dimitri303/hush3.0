@@ -135,6 +135,8 @@ const SCHEMA = [
   },
 ];
 
+const AUDIO_DEFAULTS = { master: 0.85, music: 0.80, vinyl: 0.80 };
+
 function fmtVal(v, step) {
   if (step >= 1)    return Math.round(v).toString();
   if (step <= 0.001) return v.toFixed(3);
@@ -208,6 +210,7 @@ function injectStyles() {
   border:1px solid rgba(255,255,255,.10);color:#607888;padding:2px 7px;border-radius:3px;cursor:pointer;}
 .gfx-export-btn:hover{background:rgba(80,160,100,.12);color:#90c8a0;}
 .gfx-export-status{font-size:9px;color:#506070;min-height:12px;}
+.gfx-audio-status{font-size:9px;color:#405060;letter-spacing:.5px;}
 `;
   document.head.appendChild(s);
 }
@@ -305,6 +308,34 @@ function buildHTML(gfx) {
       </div>
     </div>`;
 
+  const audioSection = `
+    <div class="gfx-section">
+      <div class="gfx-sec-hdr" data-sid="audio">
+        <span class="gfx-sec-name" style="color:#a0ffd0">AUDIO DEBUG</span>
+        <div class="gfx-sec-btns"><span class="gfx-chevron">▾</span></div>
+      </div>
+      <div class="gfx-sec-body" id="gfx-b-audio">
+        <div class="gfx-row">
+          <span class="gfx-lbl">Master</span>
+          <input type="range" class="gfx-slider" data-audio-key="master" min="0" max="1" step="0.01" value="${AUDIO_DEFAULTS.master}">
+          <span class="gfx-val" data-audio-val="master">${AUDIO_DEFAULTS.master.toFixed(2)}</span>
+        </div>
+        <div class="gfx-row">
+          <span class="gfx-lbl">Music bus</span>
+          <input type="range" class="gfx-slider" data-audio-key="music" min="0" max="1" step="0.01" value="${AUDIO_DEFAULTS.music}">
+          <span class="gfx-val" data-audio-val="music">${AUDIO_DEFAULTS.music.toFixed(2)}</span>
+        </div>
+        <div class="gfx-row">
+          <span class="gfx-lbl">Vinyl loop</span>
+          <input type="range" class="gfx-slider" data-audio-key="vinyl" min="0" max="1" step="0.01" value="${AUDIO_DEFAULTS.vinyl}">
+          <span class="gfx-val" data-audio-val="vinyl">${AUDIO_DEFAULTS.vinyl.toFixed(2)}</span>
+        </div>
+        <div class="gfx-row">
+          <span id="gfx-audio-status" class="gfx-audio-status">NOT INITIALISED</span>
+        </div>
+      </div>
+    </div>`;
+
   const exportSection = `
     <div class="gfx-export-section">
       <div style="font-size:9px;color:#506070;letter-spacing:.6px;margin-bottom:5px">EXPORT TUNING</div>
@@ -327,6 +358,7 @@ function buildHTML(gfx) {
     <div class="gfx-body">
       ${sections}
       ${qualitySection}
+      ${audioSection}
       ${exportSection}
       <div class="gfx-hint">Ctrl+Shift+G to toggle</div>
     </div>`;
@@ -414,6 +446,18 @@ export function createDebugPanel(gfx, deps) {
       gfx[k] = parseFloat(e.target.value);
       const v = panel.querySelector(`[data-val="${k}"]`);
       if (v) v.textContent = fmtVal(gfx[k], parseFloat(e.target.step));
+    }
+    const ak = e.target.dataset.audioKey;
+    if (e.target.type === 'range' && ak) {
+      const val = parseFloat(e.target.value);
+      const buses = deps.getAudio?.();
+      if (buses) {
+        if (ak === 'master') buses.masterBus.gain.value = val;
+        if (ak === 'music')  buses.musicBus.gain.value  = val;
+        if (ak === 'vinyl')  buses.vinylGain.gain.value  = val;
+      }
+      const valEl = panel.querySelector(`[data-audio-val="${ak}"]`);
+      if (valEl) valEl.textContent = val.toFixed(2);
     }
   });
 
@@ -529,6 +573,21 @@ export function createDebugPanel(gfx, deps) {
     const res = panel.querySelector('#gfx-res');
     if (res) res.textContent = `${deps.getRenderWidth()}×${deps.getRenderHeight()}`;
     panel.querySelectorAll('[name=qualityMode]').forEach(r => { r.checked = r.value === gfx.qualityMode; });
+
+    const buses = deps.getAudio?.();
+    const audioStatus = panel.querySelector('#gfx-audio-status');
+    if (audioStatus) audioStatus.textContent = buses ? 'RUNNING' : 'NOT INITIALISED';
+    if (buses) {
+      const syncAudioSlider = (key, val) => {
+        const slider = panel.querySelector(`[data-audio-key="${key}"]`);
+        if (slider && document.activeElement !== slider) slider.value = val.toFixed(2);
+        const valEl = panel.querySelector(`[data-audio-val="${key}"]`);
+        if (valEl) valEl.textContent = val.toFixed(2);
+      };
+      syncAudioSlider('master', buses.masterBus.gain.value);
+      syncAudioSlider('music',  buses.musicBus.gain.value);
+      syncAudioSlider('vinyl',  buses.vinylGain.gain.value);
+    }
   }
 
   return { sync };

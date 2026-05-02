@@ -10,7 +10,8 @@ export function setupUiControls(deps) {
     setFocus,
     updateUiState,
     showLabel,
-    applyTheme
+    applyTheme,
+    onHifiInteract,
   } = deps;
 
   canvas.addEventListener('mousemove', (e) => {
@@ -43,6 +44,7 @@ export function setupUiControls(deps) {
         return;
       }
       if (hit.id === 'hifi') {
+        onHifiInteract?.();
         const seq = ['vinyl', 'spotify', 'radio'];
         const i = seq.indexOf(state.musicSource);
         state.musicSource = seq[(i + 1) % seq.length];
@@ -59,6 +61,7 @@ export function setupUiControls(deps) {
         return;
       }
     }
+    if (hit.id === 'hifi') onHifiInteract?.();
     setFocus(hit.id);
   });
 
@@ -86,14 +89,15 @@ export function setupUiControls(deps) {
     });
   });
   document.querySelectorAll('[data-source]').forEach((el) => el.addEventListener('click', () => {
+    onHifiInteract?.();
     state.musicSource = el.dataset.source;
     state.musicOn = true;
     updateUiState();
   }));
-  UI.musicPow.addEventListener('click', () => { state.musicOn = !state.musicOn; updateUiState(); });
-  UI.musicPlay.addEventListener('click', () => { state.musicOn = !state.musicOn; updateUiState(); });
-  UI.musicPrev.addEventListener('click', () => { state.musicTrack = (state.musicTrack + tracks.length - 1) % tracks.length; state.holoPulse = 1; });
-  UI.musicNext.addEventListener('click', () => { state.musicTrack = (state.musicTrack + 1) % tracks.length; state.holoPulse = 1; });
+  UI.musicPow.addEventListener('click',  () => { onHifiInteract?.(); state.musicOn = !state.musicOn; updateUiState(); });
+  UI.musicPlay.addEventListener('click', () => { onHifiInteract?.(); state.musicOn = !state.musicOn; updateUiState(); });
+  UI.musicPrev.addEventListener('click', () => { onHifiInteract?.(); state.musicTrack = (state.musicTrack + tracks.length - 1) % tracks.length; state.holoPulse = 1; });
+  UI.musicNext.addEventListener('click', () => { onHifiInteract?.(); state.musicTrack = (state.musicTrack + 1) % tracks.length; state.holoPulse = 1; });
 
   document.querySelectorAll('[data-tvch]').forEach((el) => el.addEventListener('click', () => { state.tvCh = +el.dataset.tvch; updateUiState(); }));
   UI.tvPow.addEventListener('click', () => { state.tvOn = !state.tvOn; updateUiState(); });

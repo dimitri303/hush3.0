@@ -14,6 +14,7 @@ import { createReflectionPass } from './render/passes/reflection.js';
 import { createContactShadowPass } from './render/passes/contact-shadows.js';
 import { createDepthPolishPass } from './render/passes/depth-polish.js';
 import { setupUiControls } from './ui/controls.js';
+import { ensureAudioContext, syncAudioToState, getAudioBuses } from './audio/engine.js';
 
 const VERSION = 'A2.3-CINEMATIC-VISUAL-PASS';
 const BUILD_STAMP = 'A2.3-CINEMATIC-VISUAL-PASS | 2026-04-28 19:27:56 UTC';
@@ -3047,6 +3048,8 @@ function updateUiState() {
   } else {
     animeVideo.pause();
   }
+
+  syncAudioToState(state);
 }
 
 function applyTheme(newTheme) {
@@ -3187,7 +3190,8 @@ setupUiControls({
   setFocus,
   updateUiState,
   showLabel,
-  applyTheme
+  applyTheme,
+  onHifiInteract: ensureAudioContext,
 });
 
 state.toggleAdaptiveQuality = () => {
@@ -3232,6 +3236,7 @@ debugPanel = createDebugPanel(gfx, {
   getHotspots: () => hotspots,
   getScaleGuides: () => scaleGuides,
   showLabel,
+  getAudio: getAudioBuses,
 });
 
 // ── SNOW SYSTEM ───────────────────────────────────────

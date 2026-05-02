@@ -460,12 +460,15 @@ const billboardGlitches = Array.from({length:4},()=>({
 
 // apartmentMoments built after cityLayers — see above
 
+// Reused every call — avoids a heap allocation per timeProfile() call.
+const _tp = { day: 0, sunset: 0, night: 1, neon: 1.0 };
 function timeProfile() {
-  const w = state.timeBlend || {day:0,sunset:0,night:1};
-  return {
-    day:w.day, sunset:w.sunset, night:w.night,
-    neon:.10*w.day+.55*w.sunset+1*w.night
-  };
+  const w = state.timeBlend || { day: 0, sunset: 0, night: 1 };
+  _tp.day    = w.day;
+  _tp.sunset = w.sunset;
+  _tp.night  = w.night;
+  _tp.neon   = 0.10 * w.day + 0.55 * w.sunset + 1.0 * w.night;
+  return _tp;
 }
 
 function mixRGB3(day,sunset,night){
@@ -480,6 +483,15 @@ function rgbaFromRGB(rgb,a){return `rgba(${rgb[0]|0},${rgb[1]|0},${rgb[2]|0},${a
 
 const layout = createLayout(RW, RH);
 const SHOW_RACK_KNOBS = false;
+
+// Gradient cache — fully-static gradients (fixed coords + fixed colour stops).
+// Created lazily on first draw call (cx === rcx at that point) and reused every frame.
+let _gradVignette     = null; // drawCinematicGradePass — multiply vignette
+let _gradMusicGlow    = null; // drawReactiveLighting — hifi warm bloom
+let _gradWinEdge      = null; // drawWindowGlass — edge darkening radial
+let _gradWinSheen     = null; // drawWindowGlass — diagonal highlight
+let _gradWinTop       = null; // drawWindowGlass — top neon edge
+let _gradHifiDisplay  = null; // drawHifiRack — display panel tint
 
 // ── TEMP LAYOUT DEBUGGER ──────────────────────────────
 // Set to false when the scene layout is locked.
@@ -1226,25 +1238,31 @@ function drawWindowGlass(x,y,w,h){
 
   // Subtle darkening toward edges (glass thickness effect)
   cx.globalAlpha = glassClosed * 0.10;
-  const edge = cx.createRadialGradient(x+w*.5,y+h*.5,h*.2,x+w*.5,y+h*.5,h*.8);
-  edge.addColorStop(0,'transparent');
-  edge.addColorStop(1,'rgba(10,8,24,1)');
-  cx.fillStyle=edge; cx.fillRect(x,y,w,h);
+  if (!_gradWinEdge) {
+    _gradWinEdge = cx.createRadialGradient(x+w*.5,y+h*.5,h*.2,x+w*.5,y+h*.5,h*.8);
+    _gradWinEdge.addColorStop(0,'transparent');
+    _gradWinEdge.addColorStop(1,'rgba(10,8,24,1)');
+  }
+  cx.fillStyle = _gradWinEdge; cx.fillRect(x,y,w,h);
 
   // Diagonal highlight — light catching the pane
   cx.globalAlpha = glassClosed * 0.06;
-  const sheen = cx.createLinearGradient(x,y,x+w*.6,y+h);
-  sheen.addColorStop(0,'rgba(255,255,255,1)');
-  sheen.addColorStop(0.4,'rgba(200,220,255,0.4)');
-  sheen.addColorStop(1,'transparent');
-  cx.fillStyle=sheen; cx.fillRect(x,y,w,h);
+  if (!_gradWinSheen) {
+    _gradWinSheen = cx.createLinearGradient(x,y,x+w*.6,y+h);
+    _gradWinSheen.addColorStop(0,'rgba(255,255,255,1)');
+    _gradWinSheen.addColorStop(0.4,'rgba(200,220,255,0.4)');
+    _gradWinSheen.addColorStop(1,'transparent');
+  }
+  cx.fillStyle = _gradWinSheen; cx.fillRect(x,y,w,h);
 
   // Thin bright edge along top — reflected ceiling neon
   cx.globalAlpha = glassClosed * 0.18;
-  const topEdge = cx.createLinearGradient(x,y,x,y+h*.06);
-  topEdge.addColorStop(0,'rgba(180,120,255,0.9)');
-  topEdge.addColorStop(1,'transparent');
-  cx.fillStyle=topEdge; cx.fillRect(x,y,w,h*.06);
+  if (!_gradWinTop) {
+    _gradWinTop = cx.createLinearGradient(x,y,x,y+h*.06);
+    _gradWinTop.addColorStop(0,'rgba(180,120,255,0.9)');
+    _gradWinTop.addColorStop(1,'transparent');
+  }
+  cx.fillStyle = _gradWinTop; cx.fillRect(x,y,w,h*.06);
 
   cx.globalAlpha=1;
   cx.restore();
@@ -1256,39 +1274,38 @@ function drawRain(x, y, w, h) {
 
   const storm = state.weather.thunderstorm;
   const intensityMul = storm ? 1.35 : 1.0;
-  // Wind angle: slight natural lean plus slow gust oscillation
   const windAngle = windX + Math.sin(state.t * 0.11) * 0.022;
 
   rainLayers.forEach((layer, li) => {
     const lineW = li === 0 ? 0.55 : li === 1 ? 0.85 : 1.1;
-    const col = li === 0
-      ? [170, 205, 245] // far — cool grey-blue
-      : li === 1
-      ? [190, 220, 255] // mid — brighter blue-white
-      : [220, 235, 255]; // near — almost white
+    // Precompute colour string once per layer to avoid repeated array-to-string coercion
+    const colStr = li === 0 ? '170,205,245' : li === 1 ? '190,220,255' : '220,235,255';
+
+    cx.lineWidth = lineW;
+    cx.globalAlpha = 1;
 
     layer.forEach(d => {
       const px = x + d.x * w;
       const py = y + d.y * h;
-
-      // Streak end point — angled by wind
       const ex = px + windAngle * d.len * 3;
       const ey = py + d.len;
-
       if (py > y + h + 10 || py < y - d.len) return;
 
       const alpha = d.alpha * intensityMul;
 
-      // Gradient: faint head → bright core (1/3 down) → transparent tail
-      const g = cx.createLinearGradient(px, py, ex, ey);
-      g.addColorStop(0,   `rgba(${col},${alpha * 0.1})`);
-      g.addColorStop(0.2, `rgba(${col},${alpha * 0.85})`);
-      g.addColorStop(0.6, `rgba(${col},${alpha * 0.55})`);
-      g.addColorStop(1,   `rgba(${col},0)`);
+      if (li < 2) {
+        // Far/mid layers: solid stroke — gradient is imperceptible at ≤0.85 px width
+        cx.strokeStyle = `rgba(${colStr},${alpha * 0.55})`;
+      } else {
+        // Near layer: keep gradient for the bright-core / fading-tail look
+        const g = cx.createLinearGradient(px, py, ex, ey);
+        g.addColorStop(0,   `rgba(${colStr},${alpha * 0.10})`);
+        g.addColorStop(0.2, `rgba(${colStr},${alpha * 0.85})`);
+        g.addColorStop(0.6, `rgba(${colStr},${alpha * 0.55})`);
+        g.addColorStop(1,   'transparent');
+        cx.strokeStyle = g;
+      }
 
-      cx.strokeStyle = g;
-      cx.lineWidth = lineW;
-      cx.globalAlpha = 1;
       cx.beginPath();
       cx.moveTo(px, py);
       cx.lineTo(ex, ey);
@@ -1297,7 +1314,7 @@ function drawRain(x, y, w, h) {
       // Tiny splash at bottom of near-layer drops that hit the sill
       if (li === 2 && py + d.len > y + h * 0.92 && py + d.len < y + h + 4) {
         cx.globalAlpha = alpha * 0.4;
-        cx.strokeStyle = `rgba(${col},1)`;
+        cx.strokeStyle = `rgba(${colStr},1)`;
         cx.lineWidth = 0.6;
         for (let s = 0; s < 3; s++) {
           const ang = -Math.PI * 0.15 + s * Math.PI * 0.15;
@@ -1306,6 +1323,8 @@ function drawRain(x, y, w, h) {
           cx.lineTo(ex + Math.cos(ang) * 4, ey + Math.sin(ang) * 3);
           cx.stroke();
         }
+        cx.globalAlpha = 1;
+        cx.lineWidth = lineW;
       }
     });
   });
@@ -1319,21 +1338,19 @@ function drawGlassRainLayer(x,y,w,h){
   const glassClosed = 1 - state.winAnim;
   if(glassClosed < 0.05) return; // no glass to stick to when open
   cx.save(); cx.beginPath(); cx.rect(x,y,w,h); cx.clip();
-  cx.globalAlpha = glassClosed;
-  glassDroplets.forEach(d=>{
-    const px=x+d.x*w+Math.sin(state.t*.8+d.wobble)*2;
-    const py=y+d.y*h;
-    const len=d.len*(state.weather.thunderstorm?1.25:1);
-    const g=cx.createLinearGradient(px,py,px-3,py+len);
-    g.addColorStop(0,`rgba(230,240,255,${d.alpha*.25})`);
-    g.addColorStop(0.35,`rgba(180,210,255,${d.alpha})`);
-    g.addColorStop(1,'rgba(180,210,255,0)');
-    cx.strokeStyle=g; cx.lineWidth=1;
-    cx.beginPath(); cx.moveTo(px,py);
-    cx.quadraticCurveTo(px+Math.sin(d.wobble)*2,py+len*.45,px-2,py+len);
+  // Solid stroke per droplet — gradient fade is invisible at this scale/opacity
+  cx.strokeStyle = 'rgba(195,220,255,0.9)';
+  cx.lineWidth = 1;
+  glassDroplets.forEach(d => {
+    const px = x + d.x * w + Math.sin(state.t * 0.8 + d.wobble) * 2;
+    const py = y + d.y * h;
+    const len = d.len * (state.weather.thunderstorm ? 1.25 : 1);
+    cx.globalAlpha = glassClosed * d.alpha * 0.75;
+    cx.beginPath(); cx.moveTo(px, py);
+    cx.quadraticCurveTo(px + Math.sin(d.wobble) * 2, py + len * 0.45, px - 2, py + len);
     cx.stroke();
   });
-  cx.globalAlpha=1;
+  cx.globalAlpha = 1;
   cx.restore();
 }
 
@@ -1356,7 +1373,7 @@ function drawCityDepthGrade(x,y,w,h,horizon){
 }
 
 function drawForegroundFrame() {
-  const t = Date.now() / 1000;
+  const t = state.t;
   const pulse = 0.94 + Math.sin(t * 1.4) * 0.06;
 
   const { x, y, w, h } = layout.win;
@@ -2100,11 +2117,13 @@ function drawHifiRack() {
   cx.save();
   rr(cx, disp.x, disp.y, disp.w, disp.h, 2);
   cx.clip();
-  const g = cx.createLinearGradient(disp.x, disp.y, disp.x + disp.w, disp.y);
-  g.addColorStop(0, 'rgba(90,210,255,.18)');
-  g.addColorStop(0.55, 'rgba(20,25,40,.22)');
-  g.addColorStop(1, 'rgba(199,108,255,.18)');
-  cx.fillStyle = g;
+  if (!_gradHifiDisplay) {
+    _gradHifiDisplay = cx.createLinearGradient(disp.x, disp.y, disp.x + disp.w, disp.y);
+    _gradHifiDisplay.addColorStop(0, 'rgba(90,210,255,.18)');
+    _gradHifiDisplay.addColorStop(0.55, 'rgba(20,25,40,.22)');
+    _gradHifiDisplay.addColorStop(1, 'rgba(199,108,255,.18)');
+  }
+  cx.fillStyle = _gradHifiDisplay;
   cx.fillRect(disp.x, disp.y, disp.w, disp.h);
   cx.font = '8px sans-serif';
   cx.fillStyle = '#a7e4ff';
@@ -2334,10 +2353,12 @@ function drawAtmosphere() {
 
 function drawReactiveLighting() {
   if (state.musicOn) {
-    const g = cx.createRadialGradient(520, 396, 4, 520, 396, 280);
-    g.addColorStop(0, 'rgba(255,185,120,.06)');
-    g.addColorStop(1, 'transparent');
-    cx.fillStyle = g;
+    if (!_gradMusicGlow) {
+      _gradMusicGlow = cx.createRadialGradient(520, 396, 4, 520, 396, 280);
+      _gradMusicGlow.addColorStop(0, 'rgba(255,185,120,.06)');
+      _gradMusicGlow.addColorStop(1, 'transparent');
+    }
+    cx.fillStyle = _gradMusicGlow;
     cx.fillRect(240, 260, 560, 320);
   }
 }
@@ -2440,12 +2461,15 @@ function updateParticles(dt) {
     d.x += d.speed * dt;
     if (d.x > 1.08) { d.x = -0.08; d.y = 0.08 + Math.random() * 0.34; d.speed = 0.006 + Math.random() * 0.012; }
   });
-  glassDroplets.forEach(d => {
-    if (!(state.weather.rain || state.weather.thunderstorm)) return;
-    if (state.winAnim > 0.95) return; // no glass to run down when open
-    d.y += d.speed * dt;
-    if (d.y > 1.12) { d.y = -0.12; d.x = Math.random(); }
-  });
+  if (state.weather.rain || state.weather.thunderstorm) {
+    const glassBlocked = state.winAnim > 0.95;
+    if (!glassBlocked) {
+      glassDroplets.forEach(d => {
+        d.y += d.speed * dt;
+        if (d.y > 1.12) { d.y = -0.12; d.x = Math.random(); }
+      });
+    }
+  }
   apartmentMoments.forEach(a => {
     if (a.active > 0) { a.active -= dt; return; }
     a.next -= dt;
@@ -2739,14 +2763,16 @@ function drawCinematicGradePass() {
 
   // 1. Grounding shadows — deep corners anchor the scene.
   cx.globalCompositeOperation = 'multiply';
-  const vignette = cx.createRadialGradient(
-    RW * 0.50, RH * 0.46, RH * 0.28,
-    RW * 0.50, RH * 0.50, RH * 0.98
-  );
-  vignette.addColorStop(0,    'rgba(255,255,255,1)');
-  vignette.addColorStop(0.55, 'rgba(228,224,238,1)');
-  vignette.addColorStop(1,    'rgba( 88, 80,108,1)');
-  cx.fillStyle = vignette;
+  if (!_gradVignette) {
+    _gradVignette = cx.createRadialGradient(
+      RW * 0.50, RH * 0.46, RH * 0.28,
+      RW * 0.50, RH * 0.50, RH * 0.98
+    );
+    _gradVignette.addColorStop(0,    'rgba(255,255,255,1)');
+    _gradVignette.addColorStop(0.55, 'rgba(228,224,238,1)');
+    _gradVignette.addColorStop(1,    'rgba( 88, 80,108,1)');
+  }
+  cx.fillStyle = _gradVignette;
   cx.fillRect(0, 0, RW, RH);
 
   // Extra shadow mass at very bottom — objects sit on the floor, not float.

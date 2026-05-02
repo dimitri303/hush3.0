@@ -479,6 +479,7 @@ function mixRGB3(day,sunset,night){
 function rgbaFromRGB(rgb,a){return `rgba(${rgb[0]|0},${rgb[1]|0},${rgb[2]|0},${a.toFixed(3)})`;}
 
 const layout = createLayout(RW, RH);
+const SHOW_RACK_KNOBS = false;
 
 // ── TEMP LAYOUT DEBUGGER ──────────────────────────────
 // Set to false when the scene layout is locked.
@@ -500,7 +501,7 @@ const debugTargets = [
   'win',
   'hifi',
   'rackDisplay',
-  'rackKnobs',
+  // 'rackKnobs',
   'recordPlayer',
   'recordSleeve',
   'headphones',
@@ -2110,7 +2111,7 @@ function drawHifiRack() {
   cx.fillStyle = 'rgba(98,198,255,.12)';
   cx.fillRect(disp.x, disp.y, 24, disp.h);
 
-  for (let i = 0; i < 3; i++) {
+  if (SHOW_RACK_KNOBS) for (let i = 0; i < 3; i++) {
     const kx = layout.rackKnobs.x + i * 18;
     const ky = layout.rackKnobs.y;
     const kg = cx.createRadialGradient(kx - 1, ky - 1, 1, kx, ky, 6);
@@ -2710,7 +2711,7 @@ function drawMicroLifePass() {
   }
 
   // Hi-fi LED breathing dots.
-  if (layout.rackKnobs) {
+  if (SHOW_RACK_KNOBS && layout.rackKnobs) {
     const x = layout.rackKnobs.x;
     const y = layout.rackKnobs.y;
     const a = 0.22 + 0.14 * Math.sin(t * 1.8);

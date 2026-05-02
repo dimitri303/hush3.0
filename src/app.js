@@ -732,20 +732,6 @@ function drawWindowAnimation(x,y,w,h){
   cx.fillStyle=glassG2; cx.fillRect(x+panelW+slideR,y,panelW,h);
   cx.restore();
 
-  // When open: draw wind effect — subtle diagonal streaks entering
-  if(ease > 0.5){
-    const windA=(ease-0.5)*2;
-    cx.save(); cx.globalAlpha=windA*.06;
-    cx.strokeStyle='rgba(200,220,255,1)'; cx.lineWidth=1;
-    for(let i=0;i<8;i++){
-      const wx=x+((state.t*.18+i*.14)%1)*w;
-      cx.beginPath();
-      cx.moveTo(wx,y); cx.lineTo(wx-30,y+h);
-      cx.stroke();
-    }
-    cx.restore();
-  }
-
   cx.restore();
 }
 
@@ -775,7 +761,7 @@ function drawRoomReflection(x,y,w,h){
 function drawCondensation(x,y,w,h){
   const glassClosed = 1 - state.winAnim;
   if(glassClosed < 0.05) return;
-  if(!(state.weather.rain || state.weather.thunderstorm || state.weather.mist)) return;
+  if(!(state.weather.rain || state.weather.thunderstorm)) return;
 
   cx.save(); cx.beginPath(); cx.rect(x,y,w,h); cx.clip();
 
@@ -809,13 +795,13 @@ function drawCondensation(x,y,w,h){
 
 function drawFogBanks(x,y,w,h,horizon){
   const tp=timeProfile();
-  if(tp.day>.8 && !state.weather.mist) return;
+  if(tp.day>.8) return;
   cx.save(); cx.beginPath(); cx.rect(x,y,w,h); cx.clip();
   // 3 slow fog layers at different depths
   for(let i=0;i<3;i++){
     const fogY=horizon-h*.05+i*h*.08;
     const drift=(state.t*.006*(i+1))%1;
-    const fogA=(0.04+i*.03)*(tp.night*.7+tp.sunset*.5+tp.day*.15)+(state.weather.mist?.12:0);
+    const fogA=(0.04+i*.03)*(tp.night*.7+tp.sunset*.5+tp.day*.15);
     const fg=cx.createLinearGradient(0,fogY-20,0,fogY+40);
     fg.addColorStop(0,'transparent');
     fg.addColorStop(0.4,`rgba(${i%2?'120,80,160':'80,100,140'},${fogA})`);
@@ -2344,10 +2330,6 @@ function drawAtmosphere() {
   cx.fillStyle = g;
   cx.fillRect(0, 0, RW, RH);
 
-  if (state.weather.mist) {
-    cx.fillStyle = 'rgba(255,255,255,.05)';
-    cx.fillRect(0, RH * 0.33, RW, RH * 0.28);
-  }
 }
 
 function drawReactiveLighting() {

@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(pnpm typecheck *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\DimitriSpiropoulos\\\\OneDrive - Kerv\\\\Desktop\\\\Temp\\\\hush3.0\\\\src\" -Recurse -File)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

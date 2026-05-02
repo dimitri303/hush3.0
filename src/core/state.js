@@ -43,7 +43,7 @@ export function createState() {
     cycleMinutesBase: 22 * 60 + 47,
     timeBlend: { day: 0, sunset: 0, night: 1 },
     currentMinutes: 22 * 60 + 47,
-    weather: { rain: true, snow: false, mist: false, thunderstorm: false },
+    weather: { rain: true, snow: false, thunderstorm: false },
     theme: 'classic',
     winOpen: false,
     winAnim: 0,

@@ -1024,16 +1024,35 @@ function drawCityAsset(x, y, w, h) {
   const img = images.cityNight;
   if (!img || !img.complete || !img.naturalWidth) return;
 
-  // Scale to fill window width, anchor to bottom of window
-  const scale = w / img.naturalWidth;
-  const dw = w;
-  const dh = img.naturalHeight * scale;
-  const dx = x + state.parallaxX * -6; // subtle mouse parallax
-  const dy = y + h - dh;               // bottom-aligned
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
+
+  // Cover-fit base: source dimensions that exactly fill the dest window at 1:1
+  const coverScale = Math.max(w / iw, h / ih);
+  const baseSw = w / coverScale;   // always ≤ iw
+  const baseSh = h / coverScale;   // always ≤ ih
+
+  // Request ~6% more source pixels so buildings appear slightly smaller in the window.
+  // Clamp uniformly so neither axis exceeds the image bounds — maintains sw/sh = w/h,
+  // no distortion. If the image has no extra headroom, fit→1 and we land at cover-fit.
+  const rawSw = baseSw / 0.94;
+  const rawSh = baseSh / 0.94;
+  const fit   = Math.min(iw / rawSw, ih / rawSh, 1);
+  const sw    = rawSw * fit;
+  const sh    = rawSh * fit;
+
+  // Shift the source crop leftward (city content appears shifted right in dest) so the
+  // leftmost tower is no longer at the crop edge. parallaxX converts dest pixels to source.
+  const biasSrcPx   = w * 0.07 * (sw / w);   // 7 % of dest width expressed in source pixels
+  const parallaxSrc = state.parallaxX * 6 * (sw / w);
+  const sx = Math.max(0, Math.min(iw - sw, (iw - sw) * 0.5 - biasSrcPx + parallaxSrc));
+  const sy = Math.max(0, Math.min(ih - sh, (ih - sh) * 0.5));
 
   cx.save();
+  cx.imageSmoothingEnabled = true;
+  cx.imageSmoothingQuality = 'high';
   cx.beginPath(); cx.rect(x, y, w, h); cx.clip();
-  cx.drawImage(img, dx, dy, dw, dh);
+  cx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
   cx.restore();
 }
 

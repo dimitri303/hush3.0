@@ -1,20 +1,27 @@
 // ── Hush OS Audio Engine ──────────────────────────────
-// Lazy-init: AudioContext is only created on first hi-fi interaction.
-// Bus topology:
-//   vinylEl (HTMLAudioElement) → _mediaSource → vinylFadeGain → vinylGain → musicBus ┐
-//                                                                         weatherBus  ├── masterBus → destination
-//                                                                            cityBus  │
-//                                                                           cyberBus  ┘
+// Lazy-init: AudioContext only created on first audio interaction.
 //
-// vinylFadeGain : 0↔1 ramp owned by syncAudioToState (fade in/out + pause)
-// vinylGain     : level knob exposed to the Audio Debug slider
+// Bus topology:
+//   vinylEl     → vinylMediaSrc  → vinylFadeGain     → vinylGain      → musicBus   ┐
+//   lightRainEl → rainMediaSrc   → lightRainFilter                                  │
+//                               → lightRainFadeGain  → lightRainGain  → weatherBus ├── masterBus → destination
+//                                                                        cityBus    │
+//                                                                        cyberBus   ┘
+//
+// *FadeGain nodes  : owned by syncAudioToState — drive on/off ramps and pause logic
+// *Gain nodes      : level knobs exposed to the Audio Debug panel sliders
+// lightRainFilter  : lowpass — frequency ramps with window open/closed state
 
-// HTMLAudioElement created at module load so the browser can buffer the file.
-// MediaElementSourceNode is created exactly once inside ensureAudioContext().
+// ── Audio elements (created at module load for early buffering) ───────────────
 const vinylEl = new Audio('assets/music/vinyl-loop-01.wav');
 vinylEl.loop    = true;
 vinylEl.preload = 'auto';
 
+const lightRainEl = new Audio('assets/ambience/light-rain.mp3');
+lightRainEl.loop    = true;
+lightRainEl.preload = 'auto';
+
+// ── Node refs ─────────────────────────────────────────
 let actx = null;
 
 let masterBus   = null;
@@ -23,20 +30,41 @@ let weatherBus  = null;
 let cityBus     = null;
 let cyberBus    = null;
 
-let vinylFadeGain = null;
-let vinylGain     = null;
-let _mediaSource  = null; // MediaElementSourceNode — never recreated
+let vinylFadeGain  = null;
+let vinylGain      = null;
+let _vinylSrc      = null; // MediaElementSourceNode — created once only
 
-// _wantVinyl  : what syncAudioToState last requested (updated before actx check)
-// _lastApplied: what was last applied to the audio graph (null = never)
-// Keeping them separate prevents the dirty-check from swallowing the first post-init sync.
-let _wantVinyl   = false;
-let _lastApplied = null;
+let lightRainFilter   = null;
+let lightRainFadeGain = null;
+let lightRainGain     = null;
+let _rainSrc          = null; // MediaElementSourceNode — created once only
 
-let _pauseTimeout = null; // handle for the post-fade-out pause
+// ── State tracking ────────────────────────────────────
+// _want*       : desired state, updated before actx guard so it survives lazy init
+// _lastApplied*: last state actually written to the audio graph (null = never applied)
+let _wantVinyl        = false;
+let _lastAppliedVinyl = null;
+let _vinylPause       = null; // setTimeout handle
 
-const FADE_IN_S  = 0.70; // seconds for volume-up ramp
-const FADE_OUT_S = 0.45; // seconds for volume-down ramp (quick)
+let _wantRain        = false;
+let _lastAppliedRain = null;
+let _lastWinOpen     = null;
+let _rainPause       = null; // setTimeout handle
+
+// ── Constants ─────────────────────────────────────────
+const VINYL_IN_S  = 0.70;
+const VINYL_OUT_S = 0.45;
+
+const RAIN_IN_S      = 1.20;
+const RAIN_OUT_S     = 0.80;
+const RAIN_WIN_RAMP  = 1.50; // window open/close cross-fade
+
+const RAIN_GAIN_CLOSED = 0.40;
+const RAIN_GAIN_OPEN   = 0.90;
+const RAIN_FREQ_CLOSED = 900;
+const RAIN_FREQ_OPEN   = 6000;
+
+// ── Init ──────────────────────────────────────────────
 
 export function ensureAudioContext() {
   if (actx) {
@@ -47,7 +75,7 @@ export function ensureAudioContext() {
 
   masterBus  = actx.createGain(); masterBus.gain.value  = 0.85;
   musicBus   = actx.createGain(); musicBus.gain.value   = 0.80;
-  weatherBus = actx.createGain(); weatherBus.gain.value = 0.70;
+  weatherBus = actx.createGain(); weatherBus.gain.value = 1.15;
   cityBus    = actx.createGain(); cityBus.gain.value    = 0.50;
   cyberBus   = actx.createGain(); cyberBus.gain.value   = 0.60;
 
@@ -57,62 +85,142 @@ export function ensureAudioContext() {
   cyberBus.connect(masterBus);
   masterBus.connect(actx.destination);
 
+  // ── Vinyl chain ───────────────────────────────────
   vinylFadeGain = actx.createGain(); vinylFadeGain.gain.value = 0;
   vinylGain     = actx.createGain(); vinylGain.gain.value     = 0.80;
+  _vinylSrc = actx.createMediaElementSource(vinylEl); // one-time — never recreated
+  _vinylSrc.connect(vinylFadeGain);
   vinylFadeGain.connect(vinylGain);
   vinylGain.connect(musicBus);
 
-  // One-time wiring — createMediaElementSource may only be called once per element
-  _mediaSource = actx.createMediaElementSource(vinylEl);
-  _mediaSource.connect(vinylFadeGain);
+  // ── Light rain chain ──────────────────────────────
+  lightRainFilter = actx.createBiquadFilter();
+  lightRainFilter.type            = 'lowpass';
+  lightRainFilter.frequency.value = RAIN_FREQ_CLOSED; // default: window closed
+  lightRainFilter.Q.value         = 0.7;
+
+  lightRainFadeGain = actx.createGain(); lightRainFadeGain.gain.value = 0;
+  lightRainGain     = actx.createGain(); lightRainGain.gain.value     = 1.0;
+
+  _rainSrc = actx.createMediaElementSource(lightRainEl); // one-time — never recreated
+  _rainSrc.connect(lightRainFilter);
+  lightRainFilter.connect(lightRainFadeGain);
+  lightRainFadeGain.connect(lightRainGain);
+  lightRainGain.connect(weatherBus);
 }
 
+// ── Vinyl helpers ─────────────────────────────────────
+
 function _fadeInVinyl() {
-  // Cancel any pending post-fade-out pause so it doesn't silence a fresh fade-in
-  if (_pauseTimeout !== null) { clearTimeout(_pauseTimeout); _pauseTimeout = null; }
-
-  if (vinylEl.paused) {
-    vinylEl.play().catch(e => console.warn('[hush audio] vinyl play failed:', e));
-  }
-
+  if (_vinylPause !== null) { clearTimeout(_vinylPause); _vinylPause = null; }
+  if (vinylEl.paused) vinylEl.play().catch(e => console.warn('[hush audio] vinyl play:', e));
   const now = actx.currentTime;
-  const cur = vinylFadeGain.gain.value; // read before canceling to capture mid-ramp value
+  const cur = vinylFadeGain.gain.value; // capture mid-ramp value before canceling
   vinylFadeGain.gain.cancelScheduledValues(now);
   vinylFadeGain.gain.setValueAtTime(cur, now);
-  vinylFadeGain.gain.linearRampToValueAtTime(1, now + FADE_IN_S);
+  vinylFadeGain.gain.linearRampToValueAtTime(1, now + VINYL_IN_S);
 }
 
 function _fadeOutVinyl() {
-  if (_pauseTimeout !== null) { clearTimeout(_pauseTimeout); _pauseTimeout = null; }
-
+  if (_vinylPause !== null) { clearTimeout(_vinylPause); _vinylPause = null; }
   const now = actx.currentTime;
   const cur = vinylFadeGain.gain.value;
   vinylFadeGain.gain.cancelScheduledValues(now);
   vinylFadeGain.gain.setValueAtTime(cur, now);
-  vinylFadeGain.gain.linearRampToValueAtTime(0, now + FADE_OUT_S);
-
-  // Pause after the ramp completes — preserves currentTime for resume
-  _pauseTimeout = setTimeout(() => {
-    _pauseTimeout = null;
-    if (!_wantVinyl) vinylEl.pause();
-  }, Math.ceil(FADE_OUT_S * 1000) + 80);
+  vinylFadeGain.gain.linearRampToValueAtTime(0, now + VINYL_OUT_S);
+  _vinylPause = setTimeout(() => {
+    _vinylPause = null;
+    if (!_wantVinyl) vinylEl.pause(); // preserves currentTime
+  }, Math.ceil(VINYL_OUT_S * 1000) + 80);
 }
+
+// ── Rain helpers ──────────────────────────────────────
+
+function _fadeInRain(targetGain, filterFreq) {
+  if (_rainPause !== null) { clearTimeout(_rainPause); _rainPause = null; }
+  const now = actx.currentTime;
+  if (lightRainEl.paused) {
+    // Starting from silence — snap filter to target (inaudible at gain=0) then play
+    lightRainFilter.frequency.cancelScheduledValues(now);
+    lightRainFilter.frequency.setValueAtTime(filterFreq, now);
+    lightRainEl.play().catch(e => console.warn('[hush audio] rain play:', e));
+  } else {
+    // Recovering mid-fade-out — ramp filter smoothly instead of snapping
+    const curFreq = lightRainFilter.frequency.value;
+    lightRainFilter.frequency.cancelScheduledValues(now);
+    lightRainFilter.frequency.setValueAtTime(Math.max(curFreq, 1), now);
+    lightRainFilter.frequency.exponentialRampToValueAtTime(filterFreq, now + RAIN_IN_S);
+  }
+  const cur = lightRainFadeGain.gain.value;
+  lightRainFadeGain.gain.cancelScheduledValues(now);
+  lightRainFadeGain.gain.setValueAtTime(cur, now);
+  lightRainFadeGain.gain.linearRampToValueAtTime(targetGain, now + RAIN_IN_S);
+}
+
+function _fadeOutRain() {
+  if (_rainPause !== null) { clearTimeout(_rainPause); _rainPause = null; }
+  const now = actx.currentTime;
+  const cur = lightRainFadeGain.gain.value;
+  lightRainFadeGain.gain.cancelScheduledValues(now);
+  lightRainFadeGain.gain.setValueAtTime(cur, now);
+  lightRainFadeGain.gain.linearRampToValueAtTime(0, now + RAIN_OUT_S);
+  _rainPause = setTimeout(() => {
+    _rainPause = null;
+    if (!_wantRain) lightRainEl.pause(); // preserves currentTime
+  }, Math.ceil(RAIN_OUT_S * 1000) + 80);
+}
+
+function _adjustRainWindow(targetGain, filterFreq) {
+  if (_rainPause !== null) return; // fading out — skip; correct state applied on next fade-in
+  const now = actx.currentTime;
+  const curGain = lightRainFadeGain.gain.value;
+  lightRainFadeGain.gain.cancelScheduledValues(now);
+  lightRainFadeGain.gain.setValueAtTime(curGain, now);
+  lightRainFadeGain.gain.linearRampToValueAtTime(targetGain, now + RAIN_WIN_RAMP);
+  const curFreq = lightRainFilter.frequency.value;
+  lightRainFilter.frequency.cancelScheduledValues(now);
+  lightRainFilter.frequency.setValueAtTime(Math.max(curFreq, 1), now);
+  lightRainFilter.frequency.exponentialRampToValueAtTime(filterFreq, now + RAIN_WIN_RAMP);
+}
+
+// ── Central sync (called from updateUiState on every state change) ────────────
 
 export function syncAudioToState(state) {
-  const want = !!(state.musicOn && state.musicSource === 'vinyl');
-  _wantVinyl = want; // always update so _fadeInVinyl/_fadeOutVinyl see the latest intent
+  // ── Vinyl ──
+  const wantVinyl = !!(state.musicOn && state.musicSource === 'vinyl');
+  _wantVinyl = wantVinyl;
+  if (actx && vinylFadeGain && wantVinyl !== _lastAppliedVinyl) {
+    _lastAppliedVinyl = wantVinyl;
+    if (wantVinyl) _fadeInVinyl();
+    else           _fadeOutVinyl();
+  }
 
-  if (!actx || !vinylFadeGain) return; // context not initialised yet
+  // ── Light rain ──
+  const wantRain   = !!(state.weather.rain || state.weather.thunderstorm);
+  const winOpen    = !!state.winOpen;
+  const rainTarget = winOpen ? RAIN_GAIN_OPEN   : RAIN_GAIN_CLOSED;
+  const filterFreq = winOpen ? RAIN_FREQ_OPEN   : RAIN_FREQ_CLOSED;
 
-  if (want === _lastApplied) return; // no state change — nothing to do
-  _lastApplied = want;
+  _wantRain = wantRain;
+  if (actx && lightRainFadeGain) {
+    const rainChanged   = wantRain !== _lastAppliedRain;
+    const windowChanged = winOpen  !== _lastWinOpen;
+    _lastWinOpen = winOpen;
 
-  if (want) _fadeInVinyl();
-  else      _fadeOutVinyl();
+    if (rainChanged) {
+      _lastAppliedRain = wantRain;
+      if (wantRain) _fadeInRain(rainTarget, filterFreq);
+      else          _fadeOutRain();
+    } else if (wantRain && windowChanged) {
+      // Rain is playing and window state changed — smooth cross-ramp
+      _adjustRainWindow(rainTarget, filterFreq);
+    }
+  }
 }
 
-// Returns bus/gain refs for the Audio Debug panel sliders; null before first interaction
+// ── Debug panel access ────────────────────────────────
+
 export function getAudioBuses() {
   if (!actx) return null;
-  return { masterBus, musicBus, weatherBus, cityBus, cyberBus, vinylGain };
+  return { masterBus, musicBus, weatherBus, cityBus, cyberBus, vinylGain, lightRainGain };
 }

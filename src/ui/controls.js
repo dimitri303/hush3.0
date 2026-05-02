@@ -11,7 +11,7 @@ export function setupUiControls(deps) {
     updateUiState,
     showLabel,
     applyTheme,
-    onHifiInteract,
+    onAudioInteract,
   } = deps;
 
   canvas.addEventListener('mousemove', (e) => {
@@ -44,7 +44,7 @@ export function setupUiControls(deps) {
         return;
       }
       if (hit.id === 'hifi') {
-        onHifiInteract?.();
+        onAudioInteract?.();
         const seq = ['vinyl', 'spotify', 'radio'];
         const i = seq.indexOf(state.musicSource);
         state.musicSource = seq[(i + 1) % seq.length];
@@ -61,7 +61,7 @@ export function setupUiControls(deps) {
         return;
       }
     }
-    if (hit.id === 'hifi') onHifiInteract?.();
+    if (hit.id === 'hifi') onAudioInteract?.();
     setFocus(hit.id);
   });
 
@@ -89,22 +89,23 @@ export function setupUiControls(deps) {
     });
   });
   document.querySelectorAll('[data-source]').forEach((el) => el.addEventListener('click', () => {
-    onHifiInteract?.();
+    onAudioInteract?.();
     state.musicSource = el.dataset.source;
     state.musicOn = true;
     updateUiState();
   }));
-  UI.musicPow.addEventListener('click',  () => { onHifiInteract?.(); state.musicOn = !state.musicOn; updateUiState(); });
-  UI.musicPlay.addEventListener('click', () => { onHifiInteract?.(); state.musicOn = !state.musicOn; updateUiState(); });
-  UI.musicPrev.addEventListener('click', () => { onHifiInteract?.(); state.musicTrack = (state.musicTrack + tracks.length - 1) % tracks.length; state.holoPulse = 1; });
-  UI.musicNext.addEventListener('click', () => { onHifiInteract?.(); state.musicTrack = (state.musicTrack + 1) % tracks.length; state.holoPulse = 1; });
+  UI.musicPow.addEventListener('click',  () => { onAudioInteract?.(); state.musicOn = !state.musicOn; updateUiState(); });
+  UI.musicPlay.addEventListener('click', () => { onAudioInteract?.(); state.musicOn = !state.musicOn; updateUiState(); });
+  UI.musicPrev.addEventListener('click', () => { onAudioInteract?.(); state.musicTrack = (state.musicTrack + tracks.length - 1) % tracks.length; state.holoPulse = 1; });
+  UI.musicNext.addEventListener('click', () => { onAudioInteract?.(); state.musicTrack = (state.musicTrack + 1) % tracks.length; state.holoPulse = 1; });
 
   document.querySelectorAll('[data-tvch]').forEach((el) => el.addEventListener('click', () => { state.tvCh = +el.dataset.tvch; updateUiState(); }));
   UI.tvPow.addEventListener('click', () => { state.tvOn = !state.tvOn; updateUiState(); });
-  UI.winToggle.addEventListener('click', () => { state.winOpen = !state.winOpen; updateUiState(); showLabel(state.winOpen ? '[ WINDOW OPEN ]' : '[ WINDOW CLOSED ]', '#c7f0ff'); });
+  UI.winToggle.addEventListener('click', () => { onAudioInteract?.(); state.winOpen = !state.winOpen; updateUiState(); showLabel(state.winOpen ? '[ WINDOW OPEN ]' : '[ WINDOW CLOSED ]', '#c7f0ff'); });
   UI.winLean.addEventListener('click', () => { state.leanOut = !state.leanOut; updateUiState(); showLabel(state.leanOut ? '[ LEAN OUT ]' : '[ STEP BACK ]', '#c7f0ff'); });
 
   document.querySelectorAll('[data-weather]').forEach((el) => el.addEventListener('click', () => {
+    onAudioInteract?.();
     const key = el.dataset.weather;
     const wasActive = state.weather[key];
     Object.keys(state.weather).forEach((k) => { state.weather[k] = false; });

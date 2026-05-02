@@ -3191,7 +3191,7 @@ setupUiControls({
   updateUiState,
   showLabel,
   applyTheme,
-  onHifiInteract: ensureAudioContext,
+  onAudioInteract: ensureAudioContext,
 });
 
 state.toggleAdaptiveQuality = () => {

@@ -135,7 +135,7 @@ const SCHEMA = [
   },
 ];
 
-const AUDIO_DEFAULTS = { master: 0.85, music: 0.80, vinyl: 0.80 };
+const AUDIO_DEFAULTS = { master: 0.85, music: 0.80, vinyl: 0.80, lightRain: 1.0 };
 
 function fmtVal(v, step) {
   if (step >= 1)    return Math.round(v).toString();
@@ -331,6 +331,11 @@ function buildHTML(gfx) {
           <span class="gfx-val" data-audio-val="vinyl">${AUDIO_DEFAULTS.vinyl.toFixed(2)}</span>
         </div>
         <div class="gfx-row">
+          <span class="gfx-lbl">Light rain</span>
+          <input type="range" class="gfx-slider" data-audio-key="lightRain" min="0" max="1" step="0.01" value="${AUDIO_DEFAULTS.lightRain}">
+          <span class="gfx-val" data-audio-val="lightRain">${AUDIO_DEFAULTS.lightRain.toFixed(2)}</span>
+        </div>
+        <div class="gfx-row">
           <span id="gfx-audio-status" class="gfx-audio-status">NOT INITIALISED</span>
         </div>
       </div>
@@ -452,9 +457,10 @@ export function createDebugPanel(gfx, deps) {
       const val = parseFloat(e.target.value);
       const buses = deps.getAudio?.();
       if (buses) {
-        if (ak === 'master') buses.masterBus.gain.value = val;
-        if (ak === 'music')  buses.musicBus.gain.value  = val;
-        if (ak === 'vinyl')  buses.vinylGain.gain.value  = val;
+        if (ak === 'master')    buses.masterBus.gain.value     = val;
+        if (ak === 'music')     buses.musicBus.gain.value      = val;
+        if (ak === 'vinyl')     buses.vinylGain.gain.value      = val;
+        if (ak === 'lightRain') buses.lightRainGain.gain.value  = val;
       }
       const valEl = panel.querySelector(`[data-audio-val="${ak}"]`);
       if (valEl) valEl.textContent = val.toFixed(2);
@@ -584,9 +590,10 @@ export function createDebugPanel(gfx, deps) {
         const valEl = panel.querySelector(`[data-audio-val="${key}"]`);
         if (valEl) valEl.textContent = val.toFixed(2);
       };
-      syncAudioSlider('master', buses.masterBus.gain.value);
-      syncAudioSlider('music',  buses.musicBus.gain.value);
-      syncAudioSlider('vinyl',  buses.vinylGain.gain.value);
+      syncAudioSlider('master',    buses.masterBus.gain.value);
+      syncAudioSlider('music',     buses.musicBus.gain.value);
+      syncAudioSlider('vinyl',     buses.vinylGain.gain.value);
+      syncAudioSlider('lightRain', buses.lightRainGain.gain.value);
     }
   }
 

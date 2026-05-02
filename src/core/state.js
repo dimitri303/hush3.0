@@ -52,7 +52,7 @@ export function createState() {
     tvOn: true,
     tvCh: 1,
     tvFlicker: 0,
-    musicOn: true,
+    musicOn: false,
     musicSource: 'vinyl',
     musicTrack: 0,
     vinylSpin: 0,

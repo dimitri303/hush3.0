@@ -3201,6 +3201,10 @@ debugPanel = createDebugPanel(gfx, {
   getRenderScale,
   getQualityLabel,
   getAvgFrameMs: () => avgFrameMs,
+  getLayout: () => layout,
+  getHotspots: () => hotspots,
+  getScaleGuides: () => scaleGuides,
+  showLabel,
 });
 
 // ── SNOW SYSTEM ───────────────────────────────────────

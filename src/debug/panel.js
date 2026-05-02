@@ -202,6 +202,12 @@ function injectStyles() {
 .gfx-stats b{color:#90a8c0;font-weight:normal;}
 .gfx-hint{padding:7px;text-align:center;font-size:9px;color:#303848;
   border-top:1px solid rgba(255,255,255,.03);}
+.gfx-export-section{padding:7px 10px 8px;border-top:1px solid rgba(255,255,255,.05);}
+.gfx-export-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;}
+.gfx-export-btn{font:inherit;font-size:9px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.10);color:#607888;padding:2px 7px;border-radius:3px;cursor:pointer;}
+.gfx-export-btn:hover{background:rgba(80,160,100,.12);color:#90c8a0;}
+.gfx-export-status{font-size:9px;color:#506070;min-height:12px;}
 `;
   document.head.appendChild(s);
 }
@@ -299,6 +305,19 @@ function buildHTML(gfx) {
       </div>
     </div>`;
 
+  const exportSection = `
+    <div class="gfx-export-section">
+      <div style="font-size:9px;color:#506070;letter-spacing:.6px;margin-bottom:5px">EXPORT TUNING</div>
+      <div class="gfx-export-row">
+        <button class="gfx-export-btn" id="gfx-exp-all">Export All</button>
+        <button class="gfx-export-btn" id="gfx-exp-gfx">Export GFX</button>
+        <button class="gfx-export-btn" id="gfx-exp-layout">Export Layout</button>
+        <button class="gfx-export-btn" id="gfx-exp-hotspots">Export Hotspots</button>
+        <button class="gfx-export-btn" id="gfx-exp-scale">Export Scale</button>
+      </div>
+      <div id="gfx-exp-status" class="gfx-export-status"></div>
+    </div>`;
+
   return `
     <div class="gfx-hdr">
       <span class="gfx-title">GRAPHICS DEBUG</span>
@@ -308,6 +327,7 @@ function buildHTML(gfx) {
     <div class="gfx-body">
       ${sections}
       ${qualitySection}
+      ${exportSection}
       <div class="gfx-hint">Ctrl+Shift+G to toggle</div>
     </div>`;
 }
@@ -332,6 +352,33 @@ function syncAllControls(panel, gfx) {
   panel.querySelectorAll('.gfx-preview-btn').forEach(btn => {
     btn.classList.toggle('on', !!gfx[btn.dataset.preview]);
   });
+}
+
+const EXPORT_SKIP = new Set([...PREVIEW_KEYS, 'debug', 'renderScale']);
+const MAP_KEYS = ['sources', 'shadows', 'wraps', 'materials', 'reflectionSources'];
+
+function buildGfxExport(gfx) {
+  const out = {};
+  Object.keys(DEFAULTS).forEach(k => {
+    if (EXPORT_SKIP.has(k)) return;
+    out[k] = MAP_KEYS.includes(k) ? { ...gfx[k] } : gfx[k];
+  });
+  return `// GFX tuning snapshot — paste into DEFAULTS in src/debug/panel.js\n${JSON.stringify(out, null, 2)}`;
+}
+
+function buildLayoutExport(layout) {
+  const lines = Object.entries(layout).map(([k, v]) => `  ${k}: ${JSON.stringify(v)},`).join('\n');
+  return `// Layout snapshot — paste into createLayout() return in src/scene/config.js\n{\n${lines}\n}`;
+}
+
+function buildHotspotsExport(hotspots) {
+  const lines = hotspots.map(h => `  ${JSON.stringify({ id: h.id, hit: h.hit, focus: h.focus, zoom: h.zoom })},`).join('\n');
+  return `// Hotspots snapshot — patch hit/focus/zoom in src/scene/config.js\n[\n${lines}\n]`;
+}
+
+function buildScaleGuidesExport(guides) {
+  const lines = guides.map(g => `  ${JSON.stringify(g)},`).join('\n');
+  return `// scaleGuides snapshot — patch in src/app.js\n[\n${lines}\n]`;
 }
 
 export function createDebugPanel(gfx, deps) {
@@ -400,6 +447,36 @@ export function createDebugPanel(gfx, deps) {
       });
       gfx.renderScale = deps.getRenderScale();
       syncAllControls(panel, gfx);
+      return;
+    }
+
+    const expBtn = e.target.closest('.gfx-export-btn');
+    if (expBtn) {
+      const layout = deps.getLayout?.()      || {};
+      const hs     = deps.getHotspots?.()    || [];
+      const guides = deps.getScaleGuides?.() || [];
+      let text = '';
+      if      (expBtn.id === 'gfx-exp-gfx')      text = buildGfxExport(gfx);
+      else if (expBtn.id === 'gfx-exp-layout')    text = buildLayoutExport(layout);
+      else if (expBtn.id === 'gfx-exp-hotspots')  text = buildHotspotsExport(hs);
+      else if (expBtn.id === 'gfx-exp-scale')     text = buildScaleGuidesExport(guides);
+      else if (expBtn.id === 'gfx-exp-all')       text = [buildGfxExport(gfx), buildLayoutExport(layout), buildHotspotsExport(hs), buildScaleGuidesExport(guides)].join('\n\n// ================================================\n\n');
+      if (!text) return;
+      console.log(text);
+      const statusEl = panel.querySelector('#gfx-exp-status');
+      const flashStatus = (msg, col) => {
+        if (statusEl) { statusEl.textContent = msg; statusEl.style.color = col; }
+        deps.showLabel?.('[ TUNING EXPORTED ]', '#80d8ff');
+        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+      };
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(
+          () => flashStatus('✓ copied to clipboard', '#80ffb0'),
+          () => flashStatus('logged to console',     '#ffb060')
+        );
+      } else {
+        flashStatus('logged to console', '#ffb060');
+      }
       return;
     }
 

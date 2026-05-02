@@ -320,6 +320,7 @@ animeVideo.style.display = 'none';
 document.body.appendChild(animeVideo);
 
 const UI = createUi();
+UI.clock.style.display = 'none'; // hidden by default; press C to show
 
 let SCALE = 1;
 let focusUiTimer = null;
@@ -535,8 +536,10 @@ const debugTargets = [
   'tvGlowSpill',
   'hifiGlowOrigin',
   'hifiGlowSpill',
-  'hit.window', 'hit.hifi', 'hit.tv', 'hit.holo', 'hit.lamp',
-  'focus.window', 'focus.hifi', 'focus.tv', 'focus.holo', 'focus.lamp'
+  'clock',
+  'clockScreen',
+  'hit.window', 'hit.hifi', 'hit.tv', 'hit.holo', 'hit.lamp', 'hit.clock',
+  'focus.window', 'focus.hifi', 'focus.tv', 'focus.holo', 'focus.lamp', 'focus.clock'
 ];
 
 
@@ -583,6 +586,46 @@ function drawImageFit(key, x, y, w, h, opts = {}) {
   } else {
     cx.drawImage(img, x, y, w, h);
   }
+  cx.restore();
+}
+
+function drawClockAsset() {
+  const { clock, clockScreen: s } = layout;
+
+  drawImageFit('clockAsset', clock.x, clock.y, clock.w, clock.h, {
+    shadow: { color: 'rgba(0,0,0,0.50)', blur: 22, x: 4, y: 10 }
+  });
+
+  // Neon digital time overlay on clock screen
+  const h = Math.floor(state.currentMinutes / 60) % 24;
+  const m = Math.floor(state.currentMinutes % 60);
+  const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  const fontSize = Math.round(s.h * 0.55);
+  const tx = s.x + s.w / 2;
+  const ty = s.y + s.h / 2;
+
+  cx.save();
+  cx.font = `bold ${fontSize}px 'Courier New', Courier, monospace`;
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+
+  // Outer glow pass
+  cx.shadowColor = 'rgba(60,200,255,0.55)';
+  cx.shadowBlur = 16;
+  cx.fillStyle = 'rgba(80,200,255,0.35)';
+  cx.fillText(timeStr, tx, ty);
+
+  // Mid glow pass
+  cx.shadowColor = 'rgba(100,220,255,0.85)';
+  cx.shadowBlur = 8;
+  cx.fillStyle = '#9ce8ff';
+  cx.fillText(timeStr, tx, ty);
+
+  // Crisp core text
+  cx.shadowBlur = 0;
+  cx.fillStyle = '#d8f8ff';
+  cx.fillText(timeStr, tx, ty);
+
   cx.restore();
 }
 
@@ -2850,6 +2893,7 @@ function render(ts) {
   resetCtx(); drawWindowGlassRichnessPass();
   resetCtx(); drawLamp();
   resetCtx(); drawHifiRack();
+  resetCtx(); drawClockAsset();
   resetCtx(); drawRecordPlayer();
   resetCtx(); drawHeadphones();
   resetCtx(); drawChair();
@@ -3169,7 +3213,7 @@ function hitTest(clientX, clientY) {
   if (DEBUG_LAYOUT) console.log(`hitTest: canvas px (${Math.round(x)}, ${Math.round(y)}) | rect w=${Math.round(rect.width)} left=${Math.round(rect.left)}`);
 
   // Specific objects first, then big background areas
-  const priority = ['tv', 'holo', 'lamp', 'hifi', 'window'];
+  const priority = ['tv', 'holo', 'lamp', 'clock', 'hifi', 'window'];
   for (const id of priority) {
     const h = hotspots.find(s => s.id === id);
     if (!h) continue;
@@ -3257,6 +3301,15 @@ const snowFlakes = [
   makeSnowLayer(45, 0.038, 0.072, 1.1, 2.2,  0.42, 0.70, 0.014), // mid  — main body
   makeSnowLayer(18, 0.060, 0.095, 2.2, 3.8,  0.60, 0.92, 0.022), // near — large, bright
 ];
+
+// C key — toggle HTML clock overlay (off by default; physical clock is primary)
+window.addEventListener('keydown', (e) => {
+  if ((e.key === 'c' || e.key === 'C') && !DEBUG_LAYOUT && !e.ctrlKey && !e.metaKey) {
+    const visible = UI.clock.style.display !== 'none';
+    UI.clock.style.display = visible ? 'none' : '';
+    showLabel(visible ? '[ CLOCK HIDDEN ]' : '[ CLOCK SHOWN ]', '#7de8ff', 1.1);
+  }
+});
 
 // snow + rain seeded at module level
 loadAssets(UI);

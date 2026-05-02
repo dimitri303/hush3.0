@@ -36,6 +36,12 @@ export function setupUiControls(deps) {
       return;
     }
 
+    if (hit.id === 'clock') {
+      UI.timeUi.classList.toggle('show');
+      showLabel('[ TIME ]', '#7de8ff', 1.2);
+      return;
+    }
+
     if (state.focus === hit.id) {
       if (hit.id === 'tv') {
         state.tvCh = (state.tvCh + 1) % 2;

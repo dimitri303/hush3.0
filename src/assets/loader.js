@@ -3,6 +3,7 @@ export const ASSET_DIR = 'assets/';
 export const ASSETS = {
   books: 'books.png',
   chair: 'chair.png',
+  clockAsset: 'clock.png',
   cubeBase: 'cubeBase.png',
   headphones: 'headphones.png',
   hifiRack: 'hifi-rack.png',

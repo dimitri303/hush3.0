@@ -24,7 +24,9 @@ export function createLayout(RW, RH) {
     tvGlowSpill: { x: 828, y: 784 },
     hifiGlowOrigin: { x: 811, y: 689 },
     hifiGlowSpill: { x: 811, y: 751 },
-    moon: { x: 1266, y: 213, w: 76, h: 37 }
+    moon: { x: 1266, y: 213, w: 76, h: 37 },
+    clock: { x: 1096, y: 597, w: 118, h: 66 },
+    clockScreen: { x: 1120, y: 623, w: 53, h: 28 },
   };
 }
 
@@ -68,6 +70,14 @@ export const hotspots = [
     focus: { x: 452, y: 472, w: 129, h: 300 },
     card: null,
     zoom: { s: 1.85, ax: 0.32, ay: 0.55 }
+  },
+  {
+    id: 'clock',
+    label: 'the clock',
+    hit: { x: 1108, y: 606, w: 102, h: 59 },
+    focus: { x: 1100, y: 615, w: 124, h: 33 },
+    card: null,
+    zoom: null
   }
 ];
 

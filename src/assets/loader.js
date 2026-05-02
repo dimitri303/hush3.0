@@ -4,6 +4,7 @@ export const ASSETS = {
   books: 'books.png',
   chair: 'chair.png',
   clockAsset: 'clock.png',
+  plant: 'plant.png',
   cubeBase: 'cubeBase.png',
   headphones: 'headphones.png',
   hifiRack: 'hifi-rack.png',

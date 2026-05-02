@@ -5,8 +5,8 @@ export function createLayout(RW, RH) {
     chair: { x: 172, y: 534, w: 540, h: 464 },
     lamp: { x: 426, y: 462, w: 200, h: 304 },
     hifi: { x: 540, y: 347, w: 1041, h: 490 },
-    recordPlayer: { x: 553, y: 556, w: 181, h: 112 },
-    headphones: { x: 722, y: 598, w: 99, h: 81 },
+    recordPlayer: { x: 558, y: 553, w: 203, h: 131 },
+    headphones: { x: 770, y: 603, w: 84, h: 79 },
     tv: { x: 1274, y: 495, w: 288, h: 209 },
     table: { x: 873, y: 617, w: 805, h: 602 },
     mug: { x: 961, y: 875, w: 147, h: 101 },
@@ -16,7 +16,7 @@ export function createLayout(RW, RH) {
     cubeGlow: { x: 1320, y: 875 },
     screen: { x: 1329, y: 534, w: 114, h: 119 },
     rackDisplay: { x: 775, y: 692, w: 192, h: 12 },
-    //`rackKnobs: { x: 913, y: 705 },
+    //rackKnobs: { x: 913, y: 705 },
     recordSleeve: { x: 523, y: 689, w: 79, h: 74 },
     lampMouth: { x: 541, y: 524 },
     lampTarget: { x: 582, y: 715 },
@@ -27,6 +27,7 @@ export function createLayout(RW, RH) {
     moon: { x: 1266, y: 213, w: 76, h: 37 },
     clock: { x: 1096, y: 597, w: 118, h: 66 },
     clockScreen: { x: 1120, y: 623, w: 53, h: 28 },
+    plant: { x: 982, y: 556, w: 166, h: 113 },
   };
 }
 

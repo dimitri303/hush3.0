@@ -538,6 +538,7 @@ const debugTargets = [
   'hifiGlowSpill',
   'clock',
   'clockScreen',
+  'plant',
   'hit.window', 'hit.hifi', 'hit.tv', 'hit.holo', 'hit.lamp', 'hit.clock',
   'focus.window', 'focus.hifi', 'focus.tv', 'focus.holo', 'focus.lamp', 'focus.clock'
 ];
@@ -587,6 +588,13 @@ function drawImageFit(key, x, y, w, h, opts = {}) {
     cx.drawImage(img, x, y, w, h);
   }
   cx.restore();
+}
+
+function drawPlant() {
+  const { plant } = layout;
+  drawImageFit('plant', plant.x, plant.y, plant.w, plant.h, {
+    shadow: { color: 'rgba(0,0,0,0.45)', blur: 18, x: 3, y: 8 }
+  });
 }
 
 function drawClockAsset() {
@@ -2894,6 +2902,7 @@ function render(ts) {
   resetCtx(); drawLamp();
   resetCtx(); drawHifiRack();
   resetCtx(); drawClockAsset();
+  resetCtx(); drawPlant();
   resetCtx(); drawRecordPlayer();
   resetCtx(); drawHeadphones();
   resetCtx(); drawChair();

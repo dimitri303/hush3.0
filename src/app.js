@@ -468,6 +468,16 @@ const _steamPuffs = Array.from({ length: 10 }, (_, i) => ({
   drift: (i % 2 === 0 ? 1 : -1) * (3 + (i % 3) * 2),
 }));
 
+// Lamp dust mote pool — fixed, allocated once. Positions are in beam-space fractions.
+const _dustMotes = Array.from({ length: 22 }, (_, i) => ({
+  dist:   (i * 0.618033) % 1.0,                     // golden-ratio spread along beam depth
+  lat:    (((i * 7 + 2) % 13) / 13) - 0.5,          // lateral fraction -0.5..+0.5
+  phase:  (i * Math.PI * 2) / 22,
+  speed:  0.005 + (i % 7) * 0.0014,                 // very slow, incommensurable speeds
+  wobble: 0.10 + (i % 5) * 0.06,                    // lateral sway amplitude (fraction of cone HW)
+  r:      1.2 + (i % 4) * 0.35,                     // dot radius 1.2–2.3 px
+}));
+
 // apartmentMoments built after cityLayers — see above
 
 // Reused every call — avoids a heap allocation per timeProfile() call.
@@ -2834,21 +2844,43 @@ function drawMicroLifePass() {
   cx.save();
   cx.globalCompositeOperation = 'screen';
 
-  // Dust motes in the lamp cone. Tiny, slow, warm.
-  if (state.lampOn && layout.lamp) {
-    const lx = layout.lamp.x + layout.lamp.w * 0.58;
-    const ly = layout.lamp.y + layout.lamp.h * 0.45;
-    for (let i = 0; i < 22; i++) {
-      const p = (i * 37.17) % 1;
-      const q = (i * 19.91) % 1;
-      const dx = lx + 20 + p * 210 + Math.sin(t * 0.35 + i) * 6;
-      const dy = ly + 20 + q * 165 + Math.cos(t * 0.27 + i * 0.7) * 5;
-      const a = 0.025 + 0.025 * Math.sin(t * 0.8 + i);
-      cx.fillStyle = `rgba(255,210,145,${Math.max(0, a)})`;
+  // Cone-aware lamp dust — motes drift slowly through the real beam geometry.
+  if (state.lampOn && layout.lampMouth && layout.lampTarget && gfx.qualityMode !== '720p') {
+    const lmx  = layout.lampMouth.x;
+    const lmy  = layout.lampMouth.y;
+    const ltx  = layout.lampTarget.x;
+    const lty  = layout.lampTarget.y;
+    const bdx  = ltx - lmx;   const bdy  = lty - lmy;
+    const bLen = Math.sqrt(bdx * bdx + bdy * bdy);
+    const bAng = Math.atan2(bdy, bdx);
+    const bSin = Math.sin(bAng);   const bCos = Math.cos(bAng);
+    const tanSp = Math.tan(0.40);  // matches drawLamp spread constant
+
+    cx.filter = 'blur(1.5px)';
+    for (let i = 0; i < _dustMotes.length; i++) {
+      const m      = _dustMotes[i];
+      const dFrac  = ((m.dist + t * m.speed) % 1.0);
+      const depth  = dFrac * bLen * 1.9;
+      const coneHW = depth * tanSp;
+      const latOff = m.lat * coneHW * 1.55 + Math.sin(t * 0.13 + m.phase) * coneHW * m.wobble;
+
+      const mpx = lmx + bCos * depth - bSin * latOff;
+      const mpy = lmy + bSin * depth + bCos * latOff;
+
+      // Fade sharply outside the cone, gently with depth
+      const latFrac   = Math.abs(latOff) / Math.max(1, coneHW);
+      const edgeFade  = Math.max(0, 1 - latFrac * latFrac * 2.8);
+      const depthFade = Math.sin(dFrac * Math.PI) * 0.75 + 0.25;
+      const twinkle   = 0.72 + 0.28 * Math.sin(t * 0.88 + m.phase * 2.3);
+      const alpha     = edgeFade * depthFade * twinkle * 0.046;
+      if (alpha < 0.003) continue;
+
+      cx.fillStyle = `rgba(255,212,148,${alpha.toFixed(3)})`;
       cx.beginPath();
-      cx.arc(dx, dy, 0.7 + (i % 3) * 0.25, 0, Math.PI * 2);
+      cx.arc(mpx, mpy, m.r, 0, Math.PI * 2);
       cx.fill();
     }
+    cx.filter = 'none';
   }
 
   // Hi-fi LED breathing dots.

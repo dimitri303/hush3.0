@@ -124,7 +124,8 @@ const gfx = {
   reflectionSources: {
     window: true, city: true, tv: true, holo: true, lamp: true, hifi: true
   },
-  presenceToasts: true
+  presenceToasts: true,
+  transitioning: false,
 };
 
 const THEMES = {
@@ -226,6 +227,7 @@ let adaptiveCooldown = 0;
 let heavyPassTimer = 0;
 let lensPassTimer = 0;
 let contactPassTimer = 0;
+let cameraTransitionTimer = 0;
 let lastClockMinute = -1;
 let lastTimeModeLabel = '';
 let lastTimeChip = '';
@@ -1928,6 +1930,7 @@ function applyAdaptiveQuality(dt) {
 }
 
 function getAdaptiveIntervals() {
+  if (gfx.transitioning) return { contact: 9999, heavy: 9999, lens: 1 / 20 };
   if (!gfx.adaptiveQuality) return { contact: 1 / 30, heavy: 1 / 30, lens: 1 / 20 };
   if (avgFrameMs > 30) return { contact: 1 / 14, heavy: 1 / 12, lens: 1 / 10 };
   if (avgFrameMs > 24) return { contact: 1 / 20, heavy: 1 / 18, lens: 1 / 14 };
@@ -2993,6 +2996,10 @@ function render(ts) {
   updateMicroMotion(dt);
   if (themeTransition.active) themeTransition.t += dt;
   applyAdaptiveQuality(dt);
+  if (cameraTransitionTimer > 0) {
+    cameraTransitionTimer = Math.max(0, cameraTransitionTimer - dt);
+    gfx.transitioning = cameraTransitionTimer > 0;
+  }
   const passIntervals = getAdaptiveIntervals();
   contactPassTimer += dt;
   heavyPassTimer += dt;
@@ -3315,6 +3322,8 @@ function applyFocusTransform(instant = false) {
 
 function setFocus(id) {
   state.focus = id;
+  cameraTransitionTimer = 1.4;
+  gfx.transitioning = true;
   updateUiState();
   applyFocusTransform();
   if (!id) {

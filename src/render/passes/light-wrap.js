@@ -164,7 +164,7 @@ export function createLightWrapPass(deps) {
     cx.save();
     cx.globalAlpha = 1;
     cx.globalCompositeOperation = 'screen';
-    cx.filter = 'blur(6px)';
+    cx.filter = gfx.transitioning ? 'none' : 'blur(6px)';
     cx.drawImage(lightCanvas, 0, 0, lightCanvas.width, lightCanvas.height, 0, 0, RW, RH);
     cx.restore();
     cx.save();

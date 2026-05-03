@@ -27,7 +27,7 @@ export function createBloomPass(deps) {
     cx.save();
     cx.globalCompositeOperation = 'screen';
     cx.globalAlpha = Math.max(0, gfx.bloomStrength);
-    cx.filter = `blur(${scaledPx(gfx.bloomBlur).toFixed(1)}px)`;
+    cx.filter = gfx.transitioning ? 'none' : `blur(${scaledPx(gfx.bloomBlur).toFixed(1)}px)`;
     cx.drawImage(glowCanvas, 0, 0, glowCanvas.width, glowCanvas.height, 0, 0, RW, RH);
     cx.restore();
   }

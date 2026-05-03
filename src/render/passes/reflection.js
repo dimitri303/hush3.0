@@ -163,7 +163,7 @@ export function createReflectionPass(deps) {
     cx.save();
     cx.globalAlpha = 1;
     cx.globalCompositeOperation = 'screen';
-    cx.filter = 'blur(3px)';
+    cx.filter = gfx.transitioning ? 'none' : 'blur(3px)';
     cx.drawImage(reflectionCanvas, 0, 0, reflectionCanvas.width, reflectionCanvas.height, 0, 0, RW, RH);
     cx.restore();
     cx.save();

@@ -120,7 +120,7 @@ export function createAtmospherePass(deps) {
     cx.save();
     cx.globalAlpha = 1;
     cx.globalCompositeOperation = 'screen';
-    cx.filter = `blur(${scaledPx(8).toFixed(1)}px)`;
+    cx.filter = gfx.transitioning ? 'none' : `blur(${scaledPx(8).toFixed(1)}px)`;
     cx.drawImage(airCanvas, 0, 0, airCanvas.width, airCanvas.height, 0, 0, RW, RH);
     cx.restore();
     cx.save();

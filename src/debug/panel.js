@@ -11,6 +11,7 @@ const DEFAULTS = {
   microMotion: true, microMotionStrength: 0.55, neonBreathStrength: 0.35, lampFlickerStrength: 0.18, tvFlickerStrength: 0.28, hazeDriftStrength: 0.22, reflectionShimmerStrength: 0.24, materialShimmerStrength: 0.12,
   depthPolish: true, depthStrength: 0.32, backgroundSoftness: 0.20, foregroundSoftness: 0.14, midgroundClarity: 0.18, depthVignetteStrength: 0.16,
   adaptiveQuality: true, qualityMode: '900p', supersampling: false, supersampleScale: 1.25,
+  presenceToasts: true,
   sources: { city: true, window: true, tv: true, holo: true, hifi: true },
   shadows: { chair: true, lamp: true, hifi: true, turntable: true, headphones: true, tv: true, table: true, mug: true, remote: true, books: true, holo: true },
   wraps: { chair: true, lamp: true, hifi: true, turntable: true, tv: true, books: true, mug: true, table: true, holo: true },
@@ -132,6 +133,10 @@ const SCHEMA = [
       { label:'Mid clarity',   key:'midgroundClarity',     min:0, max:1.5, step:0.01 },
       { label:'Depth vignette',key:'depthVignetteStrength',min:0, max:1.5, step:0.01 },
     ],
+  },
+  {
+    id:'presence', label:'PRESENCE TOASTS', color:'#d0b8ff',
+    toggle:'presenceToasts',
   },
 ];
 

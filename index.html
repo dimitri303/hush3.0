@@ -58,6 +58,22 @@
     #clock .time{font-size:22px}
     #wm{font-size:11px}
   }
+  #presenceToast{
+    position:fixed;top:20px;left:50%;
+    transform:translateX(-50%) translateY(-8px);
+    pointer-events:none;z-index:999;
+    max-width:420px;padding:8px 18px;border-radius:999px;
+    backdrop-filter:blur(12px);
+    background:rgba(22,10,42,.88);
+    border:1px solid rgba(155,100,255,.40);
+    box-shadow:0 0 24px rgba(120,65,255,.22),0 4px 20px rgba(0,0,0,.55);
+    font-family:Inter,Segoe UI,Arial,sans-serif;
+    font-size:11px;letter-spacing:2px;font-weight:400;
+    color:rgba(218,200,252,.90);
+    opacity:0;transition:opacity .65s ease,transform .65s ease;
+    white-space:nowrap;user-select:none;
+  }
+  #presenceToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
@@ -129,6 +145,7 @@
       </div>
     </div>
     <div id="themeOverlay"></div>
+    <div id="presenceToast"></div>
   </div>
   <div id="init">
     <div>

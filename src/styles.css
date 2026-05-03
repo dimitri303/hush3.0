@@ -160,3 +160,5 @@ input[type=range]::-webkit-slider-thumb{appearance:none;width:12px;height:18px;b
 .mchip.on,.mchip:hover{color:#fff;border-color:rgba(255,255,255,.32);background:rgba(255,255,255,.06)}
 .chip[data-weather],.chip[data-time]{min-width:54px;text-align:center}
 .hidden{display:none}
+
+/* #presenceToast — defined in index.html <style> block (styles.css is not imported) */

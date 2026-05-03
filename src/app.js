@@ -1,4 +1,5 @@
 import { createState, createUi } from './core/state.js';
+import { createPresenceToast } from './ui/presence-toast.js';
 import { images, loadAssets } from './assets/loader.js';
 import { createLayout, hotspots, tracks } from './scene/config.js';
 import { clamp, lerp, ease, rr, gaussian, mixColor } from './core/math.js';
@@ -122,7 +123,8 @@ const gfx = {
   },
   reflectionSources: {
     window: true, city: true, tv: true, holo: true, lamp: true, hifi: true
-  }
+  },
+  presenceToasts: true
 };
 
 const THEMES = {
@@ -323,6 +325,7 @@ document.body.appendChild(animeVideo);
 
 const UI = createUi();
 UI.clock.style.display = 'none'; // hidden by default; press C to show
+createPresenceToast(() => gfx.presenceToasts);
 
 let SCALE = 1;
 let focusUiTimer = null;

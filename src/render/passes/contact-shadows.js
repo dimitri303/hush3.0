@@ -64,9 +64,17 @@ export function createContactShadowPass(deps) {
       const r = layout.recordPlayer;
       drawAngledContactShadow(sx, r.x + r.w * 0.52, r.y + r.h * 0.86, r.w * 0.92, r.h * 0.23, 0.02, 0.30, 0.10);
     }
-    if (sh.headphones && layout.headphones) {
-      const r = layout.headphones;
-      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.82, r.w * 0.72, r.h * 0.24, 0.04, 0.28, 0.08);
+    // if (sh.headphones && layout.headphones) {  // disabled — keep for re-enable
+    //   const r = layout.headphones;
+    //   drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.82, r.w * 0.72, r.h * 0.24, 0.04, 0.28, 0.08);
+    // }
+    if (sh.leftSpeaker && layout.leftSpeaker) {
+      const r = layout.leftSpeaker;
+      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.96, r.w * 0.72, r.h * 0.14, 0.00, 0.26, 0.09);
+    }
+    if (sh.rightSpeaker && layout.rightSpeaker) {
+      const r = layout.rightSpeaker;
+      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.96, r.w * 0.72, r.h * 0.14, 0.00, 0.26, 0.09);
     }
     if (sh.tv && layout.tv) {
       const r = layout.tv;

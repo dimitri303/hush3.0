@@ -107,8 +107,10 @@ const gfx = {
   sources: { city: true, window: true, tv: true, holo: true, hifi: true },
   shadows: {
     chair: true, lamp: true, hifi: true, turntable: true,
-    headphones: true, tv: true, table: true, mug: true,
-    remote: true, books: true, holo: true, clock: true, plant: true
+    headphones: false, // disabled — keep for re-enable
+    tv: true, table: true, mug: true,
+    remote: true, books: true, holo: true, clock: true, plant: true,
+    leftSpeaker: true, rightSpeaker: true
   },
   wraps: {
     chair: true, lamp: true, hifi: true, turntable: true,
@@ -536,7 +538,9 @@ const debugTargets = [
   // 'rackKnobs',
   'recordPlayer',
   'recordSleeve',
-  'headphones',
+  // 'headphones',  // disabled — keep for re-enable
+  'leftSpeaker',
+  'rightSpeaker',
   'tv',
   'screen',
   'chair',
@@ -2353,7 +2357,13 @@ function drawChair() {
 }
 
 function drawHeadphones() {
-  drawImageFit('headphones', layout.headphones.x, layout.headphones.y, layout.headphones.w, layout.headphones.h, { shadow: { blur: 8, y: 4, color: 'rgba(0,0,0,.18)' } });
+  // disabled — uncomment to re-enable
+  // drawImageFit('headphones', layout.headphones.x, layout.headphones.y, layout.headphones.w, layout.headphones.h, { shadow: { blur: 8, y: 4, color: 'rgba(0,0,0,.18)' } });
+}
+
+function drawSpeakers() {
+  drawImageFit('speaker', layout.leftSpeaker.x, layout.leftSpeaker.y, layout.leftSpeaker.w, layout.leftSpeaker.h, { shadow: { blur: 14, y: 7, color: 'rgba(0,0,0,.28)' } });
+  drawImageFit('speaker', layout.rightSpeaker.x, layout.rightSpeaker.y, layout.rightSpeaker.w, layout.rightSpeaker.h, { shadow: { blur: 14, y: 7, color: 'rgba(0,0,0,.28)' } });
 }
 
 function drawCube() {
@@ -3000,6 +3010,7 @@ function render(ts) {
   resetCtx(); drawWindowGlassRichnessPass();
   resetCtx(); drawLamp();
   resetCtx(); drawHifiRack();
+  resetCtx(); drawSpeakers();
   resetCtx(); drawClockAsset();
   resetCtx(); drawPlant();
   resetCtx(); drawRecordPlayer();

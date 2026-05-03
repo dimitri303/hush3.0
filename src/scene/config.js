@@ -5,7 +5,7 @@ export function createLayout(RW, RH) {
     chair: {"x":-3,"y":499,"w":667,"h":588},
     lamp: {"x":346,"y":462,"w":200,"h":304},
     hifi: { x: 540, y: 347, w: 1041, h: 490 },
-    recordPlayer: { x: 558, y: 553, w: 203, h: 131 },
+    recordPlayer: { x: 774, y: 539, w: 201, h: 144 },
     headphones: { x: 770, y: 603, w: 84, h: 79 },
     tv: { x: 1292, y: 525, w: 247, h: 177 },
     table: {"x":748,"y":517,"w":1038,"h":788},
@@ -25,9 +25,11 @@ export function createLayout(RW, RH) {
     hifiGlowOrigin: { x: 811, y: 699 },
     hifiGlowSpill: { x: 811, y: 751 },
     moon: { x: 1266, y: 213, w: 76, h: 37 },
-    clock: { x: 1096, y: 597, w: 118, h: 66 },
-    clockScreen: { x: 1120, y: 623, w: 53, h: 28 },
-    plant: { x: 982, y: 556, w: 166, h: 113 },
+    clock: { x: 1028, y: 597, w: 118, h: 66 },
+    clockScreen: { x: 1053, y: 623, w: 53, h: 28 },
+    plant: { x: 632, y: 556, w: 166, h: 113 },
+    leftSpeaker:  { x: 536, y: 564, w: 140, h: 100 },
+    rightSpeaker: { x: 1122, y: 564, w: 140, h: 100 },
   };
 }
 
@@ -75,8 +77,8 @@ export const hotspots = [
   {
     id: 'clock',
     label: 'the clock',
-    hit: { x: 1108, y: 606, w: 102, h: 59 },
-    focus: { x: 1100, y: 615, w: 124, h: 33 },
+    hit: { x: 1035, y: 606, w: 102, h: 59 },
+    focus: { x: 1042, y: 615, w: 84, h: 33 },
     card: null,
     zoom: null
   }

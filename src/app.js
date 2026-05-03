@@ -108,15 +108,15 @@ const gfx = {
   shadows: {
     chair: true, lamp: true, hifi: true, turntable: true,
     headphones: true, tv: true, table: true, mug: true,
-    remote: true, books: true, holo: true
+    remote: true, books: true, holo: true, clock: true, plant: true
   },
   wraps: {
     chair: true, lamp: true, hifi: true, turntable: true,
-    tv: true, books: true, mug: true, table: true, holo: true
+    tv: true, books: true, mug: true, table: true, holo: true, clock: true, plant: true
   },
   materials: {
     chair: true, hifi: true, turntable: true, tv: true,
-    table: true, mug: true, books: true, holo: true, floor: true
+    table: true, mug: true, books: true, holo: true, floor: true, clock: true, plant: true
   },
   reflectionSources: {
     window: true, city: true, tv: true, holo: true, lamp: true, hifi: true
@@ -458,6 +458,14 @@ const billboardGlitches = Array.from({length:4},()=>({
   phase:Math.random()*Math.PI*2,
   colourA:Math.random()>.5?'rgba(0,230,255,.65)':'rgba(255,65,190,.62)',
   colourB:Math.random()>.5?'rgba(255,210,90,.5)':'rgba(180,110,255,.55)'
+}));
+
+// Steam puff pool — fixed, allocated once, never recreated per frame.
+const _steamPuffs = Array.from({ length: 10 }, (_, i) => ({
+  px:    ((i * 37) % 11 - 5) * 5,
+  phase: (i * Math.PI * 2) / 10,
+  r:     10 + (i % 3) * 7,
+  drift: (i % 2 === 0 ? 1 : -1) * (3 + (i % 3) * 2),
 }));
 
 // apartmentMoments built after cityLayers — see above
@@ -2354,14 +2362,14 @@ function drawCube() {
   const cy0 = r.y + r.h * 0.35 + Math.sin(state.t * 1.8) * 1.7;
 
   state.holoPulse = Math.max(0, state.holoPulse - 0.02);
-  const alpha = 0.5 + Math.sin(state.t * 2.5) * 0.08 + state.holoPulse * 0.25;
+  const alpha = 0.38 + Math.sin(state.t * 2.5) * 0.06 + state.holoPulse * 0.28;
 
   const th = THEMES[state.theme] || THEMES.classic;
   cx.save();
   cx.translate(cx0, cy0);
   cx.strokeStyle = th.stroke(alpha);
-  cx.fillStyle   = th.fill(0.08 + state.holoPulse * 0.09);
-  cx.lineWidth = Math.max(1.1, r.w * 0.025);
+  cx.fillStyle   = th.fill(0.06 + state.holoPulse * 0.09);
+  cx.lineWidth = Math.max(0.8, r.w * 0.016);
 
   const s = r.w * 0.28 + state.holoPulse * 3;
   const rot = state.t * 0.7;
@@ -2386,10 +2394,23 @@ function drawCube() {
   const glowR = r.w * 1.2;
   const glowY = cy0 + r.h * 0.25;
   const glow = cx.createRadialGradient(cx0, glowY, 2, cx0, glowY, glowR);
-  glow.addColorStop(0, th.glow(0.16 + state.holoPulse * 0.1));
+  glow.addColorStop(0, th.glow(0.10 + state.holoPulse * 0.14));
   glow.addColorStop(1, 'transparent');
   cx.fillStyle = glow;
   cx.fillRect(cx0 - glowR, cy0 - r.h * 0.15, glowR * 2, r.h * 1.35);
+
+  // Broader diffuse base glow pooling on the table surface beneath the emitter
+  const baseGlowR = r.w * 1.85;
+  const tableY = r.y + r.h * 0.96;
+  const baseGlow = cx.createRadialGradient(cx0, tableY, 2, cx0, tableY, baseGlowR);
+  baseGlow.addColorStop(0,    th.glow(0.13 + state.holoPulse * 0.08));
+  baseGlow.addColorStop(0.50, th.glow(0.05));
+  baseGlow.addColorStop(1,    'transparent');
+  cx.save();
+  cx.globalCompositeOperation = 'screen';
+  cx.fillStyle = baseGlow;
+  cx.fillRect(cx0 - baseGlowR, tableY - baseGlowR * 0.18, baseGlowR * 2, baseGlowR * 0.38);
+  cx.restore();
 }
 
 function drawAtmosphere() {
@@ -2764,6 +2785,49 @@ function drawFloorAndObjectPolishPass() {
   cx.restore();
 }
 
+function drawMugSteam() {
+  if (!layout.mug) return;
+  if (gfx.qualityMode === '720p') return;
+
+  const rm    = layout.mug;
+  const mx0   = rm.x + rm.w * 0.50;
+  const my0   = rm.y + rm.h * 0.14;
+  const riseH = 85;
+  const t     = state.t || 0;
+
+  cx.save();
+  cx.globalCompositeOperation = 'source-over';
+
+  for (let i = 0; i < _steamPuffs.length; i++) {
+    const p     = _steamPuffs[i];
+    const cycle = ((t * 0.044 + p.phase / (Math.PI * 2)) % 1.0);
+    const fadeIn = Math.min(1, cycle / 0.12);
+    const alpha  = fadeIn * (1 - cycle) * (1 - cycle) * 0.28;
+    if (alpha < 0.004) continue;
+
+    const py  = my0 - cycle * riseH;
+    const px  = mx0 + p.px + Math.sin(t * 0.32 + p.phase) * p.drift;
+    const r   = Math.max(3, p.r * (0.55 + cycle * 1.0));
+
+    const warm = 1 - cycle;
+    const rC   = 252;
+    const gC   = Math.round(218 + warm * 16);
+    const bC   = Math.round(204 + warm * 12);
+
+    const grad = cx.createRadialGradient(px, py, 0, px, py, r);
+    grad.addColorStop(0,    `rgba(${rC},${gC},${bC},${alpha.toFixed(3)})`);
+    grad.addColorStop(0.40, `rgba(${rC},${gC},${bC},${(alpha * 0.50).toFixed(3)})`);
+    grad.addColorStop(1,    `rgba(${rC},${gC},${bC},0)`);
+
+    cx.fillStyle = grad;
+    cx.beginPath();
+    cx.ellipse(px, py, r, r * 0.72, 0, 0, Math.PI * 2);
+    cx.fill();
+  }
+
+  cx.restore();
+}
+
 function drawMicroLifePass() {
   const t = state.t || 0;
 
@@ -2803,6 +2867,9 @@ function drawMicroLifePass() {
   }
 
   cx.restore();
+
+  // Mug steam — own save/restore so it uses source-over, not screen
+  drawMugSteam();
 }
 
 function drawCinematicGradePass() {

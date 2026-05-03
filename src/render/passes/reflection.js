@@ -136,6 +136,11 @@ export function createReflectionPass(deps) {
     rx.save(); rx.globalCompositeOperation = 'screen';
     if (gfx.reflectionSources.window || gfx.reflectionSources.city) {
       drawReflectionStreak(rx, h.x + h.w * 0.34, h.y + h.h * 0.56, h.w * 0.44, 20, 'rgba(120,170,255,__A__)', 0.08 * s, 8, -0.02);
+      // Faint ambient catch on brass clock casing
+      if (layout.clock) {
+        const r = layout.clock;
+        drawReflectionStreak(rx, r.x + r.w * 0.28, r.y + r.h * 0.20, r.w * 0.54, 9, 'rgba(145,175,255,__A__)', 0.06 * s, 6, -0.03);
+      }
     }
     if (gfx.reflectionSources.hifi && state.musicOn) {
       drawReflectionBlob(rx, d.x + d.w * 0.45, d.y + 22, d.w * 0.75, 22, 'rgba(100,220,255,__A__)', 0.10 * s, 8, 0.0);

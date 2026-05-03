@@ -94,7 +94,18 @@ export function createContactShadowPass(deps) {
     }
     if (sh.holo && layout.cube) {
       const r = layout.cube;
+      // Broader soft AO pool beneath emitter base
+      drawShadowEllipse(sx, r.x + r.w * 0.50, r.y + r.h * 0.94, r.w * 1.80, r.h * 0.22, 0.05 * gfx.aoStrength, 28);
       drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.92, r.w * 0.65, r.h * 0.18, 0.02, 0.30, 0.08);
+    }
+    if (sh.clock && layout.clock) {
+      const r = layout.clock;
+      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.96, r.w * 0.88, r.h * 0.26, 0.01, 0.26, 0.09);
+    }
+    if (sh.plant && layout.plant) {
+      const r = layout.plant;
+      // Shadow under pot base only (bottom ~40% of asset is the pot)
+      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.97, r.w * 0.52, r.h * 0.14, 0.00, 0.28, 0.10);
     }
   }
 

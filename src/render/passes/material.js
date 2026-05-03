@@ -178,6 +178,35 @@ export function createMaterialPass(deps) {
     mx.restore();
   }
 
+  function drawMaterialClock() {
+    if (!gfx.materials.clock || !layout.clock || !layout.clockScreen) return;
+    const r = layout.clock;
+    const s = layout.clockScreen;
+    const str = gfx.materialStrength;
+    mx.save(); mx.globalCompositeOperation = 'screen';
+    // Brass casing metallic sheen along top edge
+    drawMaterialSheen(mx, r.x + r.w * 0.08, r.y + r.h * 0.10, r.w * 0.76, r.h * 0.32, -0.04, 'rgba(210,175,100,__A__)', 0.11 * gfx.metalGlintStrength * str, 5);
+    // Specular catch on upper casing corner
+    drawSpecDot(mx, r.x + r.w * 0.78, r.y + r.h * 0.20, r.w * 0.11, 'rgba(240,215,150,__A__)', 0.14 * gfx.metalGlintStrength * str, 3);
+    // Screen glass catchlight
+    drawGlassReflection(mx, s.x, s.y, s.w, s.h, 0.08 * gfx.glassSheenStrength * str);
+    mx.restore();
+  }
+
+  function drawMaterialPlant() {
+    if (!gfx.materials.plant || !layout.plant) return;
+    const r = layout.plant;
+    const str = gfx.materialStrength;
+    const potY  = r.y + r.h * 0.56;
+    const potH  = r.h * 0.43;
+    mx.save(); mx.globalCompositeOperation = 'screen';
+    // Earthenware pot warm clay sheen
+    drawMaterialSheen(mx, r.x + r.w * 0.14, potY + potH * 0.12, r.w * 0.68, potH * 0.38, -0.04, 'rgba(190,150,105,__A__)', 0.08 * gfx.woodSheenStrength * str, 6);
+    // Small highlight on pot rim
+    drawSpecDot(mx, r.x + r.w * 0.56, potY + potH * 0.06, r.w * 0.10, 'rgba(220,185,140,__A__)', 0.12 * gfx.metalGlintStrength * str, 3);
+    mx.restore();
+  }
+
   function renderMaterialPass() {
     clearMaterialCanvas();
     if (!gfx.materialResponse && !gfx.materialPreview) return;
@@ -190,6 +219,8 @@ export function createMaterialPass(deps) {
     drawMaterialBooks();
     drawMaterialHolo();
     drawMaterialFloor();
+    drawMaterialClock();
+    drawMaterialPlant();
   }
 
   function compositeMaterialResponse() {

@@ -138,6 +138,14 @@ export function createLightWrapPass(deps) {
       const r = layout.cube;
       drawLightBlob(lx, r.x + r.w * 0.50, r.y + r.h * 0.48, r.w * 1.2, r.h * 0.80, 'rgba(180,145,255,__A__)', 0.10 * gfx.wrapWindowStrength, 10, 0);
     }
+    if (wrap.clock && layout.clock) {
+      const r = layout.clock;
+      drawLightBlob(lx, r.x + r.w * 0.42, r.y + r.h * 0.22, r.w * 0.88, r.h * 0.60, 'rgba(145,175,255,__A__)', 0.07 * gfx.wrapAmbientStrength, 10, 0);
+    }
+    if (wrap.plant && layout.plant) {
+      const r = layout.plant;
+      drawLightBlob(lx, r.x + r.w * 0.50, r.y + r.h * 0.28, r.w * 0.80, r.h * 0.50, 'rgba(115,155,210,__A__)', 0.06 * gfx.wrapAmbientStrength, 12, 0);
+    }
 
     lx.restore();
   }

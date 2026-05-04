@@ -60,6 +60,7 @@ export function setupDebugControls(deps) {
     const step = e.altKey ? 10 : 1;
 
     if (e.key === 'Tab') {
+      if (document.activeElement?.closest('#gfx-panel')) return;
       e.preventDefault();
       const i = debugTargets.indexOf(currentTarget);
       setDebugTarget(debugTargets[(i + 1) % debugTargets.length]);

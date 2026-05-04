@@ -74,6 +74,127 @@
     white-space:nowrap;user-select:none;
   }
   #presenceToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* ── Guestbook Modal ─────────────────────────────── */
+  #guestbookModal{
+    position:fixed;inset:0;z-index:500;
+    display:flex;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.52);
+    opacity:0;visibility:hidden;pointer-events:none;
+    transition:opacity .25s ease,visibility .25s ease;
+  }
+  #guestbookModal.open{opacity:1;visibility:visible;pointer-events:auto;}
+  #gbBook{
+    position:relative;width:min(92vw,520px);max-height:88vh;
+    display:flex;flex-direction:column;overflow:hidden;
+    background-color:#f0ebe0;
+    border-radius:3px 8px 8px 3px;
+    box-shadow:0 8px 48px rgba(0,0,0,.52),inset 0 0 80px rgba(0,0,0,.07),inset 3px 0 0 rgba(185,55,55,.16);
+    color:#2c1810;
+    font-family:Georgia,'Times New Roman',serif;
+    transform:scale(.97) translateY(6px);
+    transition:transform .25s ease;
+  }
+  #guestbookModal.open #gbBook{transform:scale(1) translateY(0);}
+  #gbClose{
+    position:absolute;top:12px;right:14px;
+    background:none;border:none;cursor:pointer;
+    font-size:14px;color:rgba(44,24,16,.38);
+    line-height:1;padding:4px 7px;
+    font-family:inherit;transition:color .15s;
+  }
+  #gbClose:hover{color:rgba(44,24,16,.78);}
+  #gbHeader{
+    padding:22px 30px 13px;
+    border-bottom:1px solid rgba(50,25,8,.12);
+    flex-shrink:0;
+  }
+  #gbTitle{font-size:17px;letter-spacing:.04em;color:#3c2010;margin-bottom:3px;}
+  #gbSubtitle{font-size:10px;letter-spacing:.2em;color:rgba(44,24,16,.45);text-transform:uppercase;}
+  #gbTabs{
+    display:flex;padding:10px 30px 0;
+    border-bottom:1px solid rgba(50,25,8,.1);
+    flex-shrink:0;background:transparent;
+  }
+  .gb-tab{
+    background:none;border:none;
+    font-family:Georgia,serif;font-size:11px;letter-spacing:.1em;
+    color:rgba(44,24,16,.4);padding:8px 14px;cursor:pointer;
+    border-bottom:2px solid transparent;margin-bottom:-1px;
+    transition:color .15s,border-color .15s;
+  }
+  .gb-tab.on,.gb-tab:hover{color:#3c2010;}
+  .gb-tab.on{border-bottom-color:#8b6040;}
+  #gbReadPane,#gbSignPane{
+    flex:1;overflow-y:auto;padding:16px 30px 22px;
+    scrollbar-width:thin;scrollbar-color:rgba(50,25,8,.15) transparent;
+  }
+  #gbReadPane::-webkit-scrollbar,#gbSignPane::-webkit-scrollbar{width:3px;}
+  #gbReadPane::-webkit-scrollbar-thumb,#gbSignPane::-webkit-scrollbar-thumb{background:rgba(50,25,8,.15);border-radius:2px;}
+  .gb-entry{padding:12px 0;border-bottom:1px solid rgba(50,25,8,.09);}
+  .gb-entry:last-child{border-bottom:none;}
+  .gb-name{font-size:13px;font-weight:bold;color:#2c1810;margin-bottom:2px;}
+  .gb-loc{font-size:11px;color:rgba(44,24,16,.55);font-style:italic;margin-bottom:5px;}
+  .gb-msg{font-size:13px;line-height:1.55;color:#2e1a0a;margin-bottom:5px;font-family:"Segoe Print","Bradley Hand","Comic Sans MS",cursive;font-weight:normal;letter-spacing:.01em;}
+  .gb-date{font-size:10px;color:rgba(44,24,16,.4);}
+  .gb-empty{font-size:12px;color:rgba(44,24,16,.5);font-style:italic;padding:12px 0;}
+  #gbLastSigned{
+    font-size:10px;color:rgba(44,24,16,.36);font-style:italic;
+    margin-top:14px;padding-top:10px;
+    border-top:1px solid rgba(50,25,8,.08);
+  }
+  @keyframes gbInkFade{
+    from{opacity:0;transform:translateY(-3px);}
+    to{opacity:1;transform:translateY(0);}
+  }
+  .gb-entry-new{animation:gbInkFade .65s ease forwards;}
+  /* Form */
+  .gb-field{margin-bottom:15px;}
+  .gb-field-row{display:flex;gap:14px;}
+  .gb-field-row>div{flex:1;}
+  .gb-label{
+    display:block;font-size:9px;letter-spacing:.14em;
+    color:rgba(44,24,16,.5);margin-bottom:5px;
+    font-family:Georgia,serif;text-transform:uppercase;
+  }
+  .gb-input{
+    width:100%;background:rgba(255,255,255,.45);
+    border:none;border-bottom:1px solid rgba(50,25,8,.2);
+    padding:7px 4px;font:inherit;font-size:12px;
+    color:#2c1810;outline:none;transition:border-color .15s;
+  }
+  .gb-input:focus{border-bottom-color:#8b6040;}
+  .gb-input::placeholder{color:rgba(44,24,16,.28);}
+  .gb-sentence{font-size:11px;color:rgba(44,24,16,.5);font-style:italic;margin-bottom:9px;}
+  #gbMsgPicker{display:flex;flex-wrap:wrap;gap:6px;}
+  .gb-msg-chip{display:flex;align-items:center;cursor:pointer;}
+  .gb-msg-chip input[type=radio]{display:none;}
+  .gb-msg-chip span{
+    font-size:10px;font-family:Georgia,serif;
+    padding:5px 10px;border:1px solid rgba(50,25,8,.17);
+    color:rgba(44,24,16,.52);transition:all .12s;border-radius:2px;
+  }
+  .gb-msg-chip input:checked+span,.gb-msg-chip:hover span{
+    background:rgba(139,96,64,.10);border-color:rgba(139,96,64,.38);color:#3c2010;
+  }
+  .gb-submit{
+    width:100%;padding:10px;margin-top:8px;
+    background:none;border:1px solid rgba(50,25,8,.22);
+    font:inherit;font-size:11px;letter-spacing:.1em;
+    color:#3c2010;cursor:pointer;transition:all .15s;
+    font-family:Georgia,serif;
+  }
+  .gb-submit:hover{background:rgba(50,25,8,.05);border-color:rgba(50,25,8,.38);}
+  .gb-status{font-size:11px;margin-top:10px;font-style:italic;min-height:16px;}
+  .gb-status-ok{color:#5a6a40;}
+  .gb-status-error{color:#8a3020;}
+  .gb-status-info{color:rgba(44,24,16,.52);}
+  @media(max-width:520px){
+    #gbHeader{padding:18px 18px 12px;}
+    #gbReadPane,#gbSignPane{padding:14px 18px 18px;}
+    #gbTabs{padding:8px 18px 0;}
+    .gb-field-row{flex-direction:column;gap:0;}
+  }
 </style>
 </head>
 <body>
@@ -152,6 +273,48 @@
       <div class="logo">HUSH</div>
       <div class="sub">LOADING</div>
       <div class="loader" id="loaderTxt">LOADING ASSETS…</div>
+    </div>
+  </div>
+  <div id="guestbookModal" aria-hidden="true">
+    <div id="gbBook">
+      <button id="gbClose" aria-label="Close guestbook">✕</button>
+      <div id="gbHeader">
+        <div id="gbTitle">Hush Guestbook</div>
+        <div id="gbSubtitle">Suite 27</div>
+      </div>
+      <div id="gbTabs">
+        <button class="gb-tab on" data-tab="read">Read</button>
+        <button class="gb-tab" data-tab="sign">Sign</button>
+      </div>
+      <div id="gbReadPane">
+        <div id="gbEntries"></div>
+        <div id="gbLastSigned"></div>
+      </div>
+      <div id="gbSignPane" style="display:none">
+        <form id="gbForm" autocomplete="off" novalidate>
+          <div class="gb-field">
+            <label for="gbName" class="gb-label">Your name</label>
+            <input type="text" id="gbName" class="gb-input" maxlength="24" placeholder="anonymous guest">
+          </div>
+          <div class="gb-field gb-field-row">
+            <div>
+              <label for="gbCity" class="gb-label">City</label>
+              <input type="text" id="gbCity" class="gb-input" maxlength="40" placeholder="optional">
+            </div>
+            <div>
+              <label for="gbCountry" class="gb-label">Country</label>
+              <input type="text" id="gbCountry" class="gb-input" maxlength="40" placeholder="optional">
+            </div>
+          </div>
+          <div class="gb-field">
+            <div class="gb-label">I am here because…</div>
+            <div class="gb-sentence">Choose a message</div>
+            <div id="gbMsgPicker"></div>
+          </div>
+          <button type="submit" class="gb-submit">Sign the book</button>
+        </form>
+        <div id="gbStatus" class="gb-status"></div>
+      </div>
     </div>
   </div>
 </div>

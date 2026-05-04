@@ -12,6 +12,7 @@ export function setupUiControls(deps) {
     showLabel,
     applyTheme,
     onAudioInteract,
+    openGuestbook,
   } = deps;
 
   canvas.addEventListener('mousemove', (e) => {
@@ -39,6 +40,13 @@ export function setupUiControls(deps) {
     if (hit.id === 'clock') {
       UI.timeUi.classList.toggle('show');
       showLabel('[ TIME ]', '#7de8ff', 1.2);
+      return;
+    }
+
+    if (hit.id === 'guestbook') {
+      if (state.focus) setFocus(null);
+      showLabel('[ GUESTBOOK ]', '#e8d8b0', 1.2);
+      openGuestbook?.();
       return;
     }
 

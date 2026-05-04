@@ -30,6 +30,7 @@ export function createLayout(RW, RH) {
     plant: { x: 632, y: 556, w: 166, h: 113 },
     leftSpeaker:  { x: 536, y: 564, w: 140, h: 100 },
     rightSpeaker: { x: 1122, y: 564, w: 140, h: 100 },
+    guestbook:    { x: 1101, y: 887, w: 141, h: 126 },
   };
 }
 
@@ -79,6 +80,14 @@ export const hotspots = [
     label: 'the clock',
     hit: { x: 1035, y: 606, w: 102, h: 59 },
     focus: { x: 1042, y: 615, w: 84, h: 33 },
+    card: null,
+    zoom: null
+  },
+  {
+    id: 'guestbook',
+    label: 'the guestbook',
+    hit: { x: 1101, y: 887, w: 141, h: 126 },
+    focus: { x: 1101, y: 887, w: 141, h: 126 },
     card: null,
     zoom: null
   }

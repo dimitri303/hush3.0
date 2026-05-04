@@ -12,6 +12,7 @@ export const ASSETS = {
   mug: 'mug.png',
   recordPlayer: 'record-player.png',
   speaker: 'speaker.png',
+  guestbook: 'guestbook.png',
   remote: 'remote.png',
   moon: 'moon.png',
   cityNight: 'city-night.png',

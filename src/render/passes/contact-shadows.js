@@ -115,6 +115,10 @@ export function createContactShadowPass(deps) {
       // Shadow under pot base only (bottom ~40% of asset is the pot)
       drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.97, r.w * 0.52, r.h * 0.14, 0.00, 0.28, 0.10);
     }
+    if (sh.guestbook && layout.guestbook) {
+      const r = layout.guestbook;
+      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.90, r.w * 0.90, r.h * 0.18, 0.00, 0.26, 0.09);
+    }
   }
 
   function compositeContactShadows() {

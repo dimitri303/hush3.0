@@ -1,5 +1,6 @@
 import { createState, createUi } from './core/state.js';
 import { createPresenceToast } from './ui/presence-toast.js';
+import { initGuestbook, openGuestbook } from './ui/guestbook.js';
 import { images, loadAssets } from './assets/loader.js';
 import { createLayout, hotspots, tracks } from './scene/config.js';
 import { clamp, lerp, ease, rr, gaussian, mixColor } from './core/math.js';
@@ -110,8 +111,10 @@ const gfx = {
     chair: true, lamp: true, hifi: true, turntable: true,
     headphones: false, // disabled — keep for re-enable
     tv: true, table: true, mug: true,
-    remote: true, books: true, holo: true, clock: true, plant: true,
-    leftSpeaker: true, rightSpeaker: true
+    remote: false, // disabled — set to true to re-enable
+    books: true, holo: true, clock: true, plant: true,
+    leftSpeaker: true, rightSpeaker: true,
+    guestbook: true
   },
   wraps: {
     chair: true, lamp: true, hifi: true, turntable: true,
@@ -328,6 +331,7 @@ document.body.appendChild(animeVideo);
 const UI = createUi();
 UI.clock.style.display = 'none'; // hidden by default; press C to show
 createPresenceToast(() => gfx.presenceToasts);
+initGuestbook();
 
 let SCALE = 1;
 let focusUiTimer = null;
@@ -566,6 +570,7 @@ const debugTargets = [
   'clock',
   'clockScreen',
   'plant',
+  'guestbook',
   'hit.window', 'hit.hifi', 'hit.tv', 'hit.holo', 'hit.lamp', 'hit.clock',
   'focus.window', 'focus.hifi', 'focus.tv', 'focus.holo', 'focus.lamp', 'focus.clock'
 ];
@@ -2354,8 +2359,32 @@ function drawTvScreenContent(x, y, w, h) {
 function drawTableAndProps() {
   drawImageFit('table', layout.table.x, layout.table.y, layout.table.w, layout.table.h, { shadow: { blur: 22, y: 12, color: 'rgba(0,0,0,.4)' } });
   drawImageFit('mug', layout.mug.x, layout.mug.y, layout.mug.w, layout.mug.h, { shadow: { blur: 8, y: 4, color: 'rgba(0,0,0,.22)' } });
-  drawImageFit('remote', layout.remote.x, layout.remote.y, layout.remote.w, layout.remote.h, { shadow: { blur: 8, y: 4, color: 'rgba(0,0,0,.20)' } });
+  // drawImageFit('remote', ...); // disabled — uncomment to re-enable
   drawImageFit('books', layout.books.x, layout.books.y, layout.books.w, layout.books.h, { shadow: { blur: 8, y: 4, color: 'rgba(0,0,0,.22)' } });
+}
+
+function drawGuestbook() {
+  const r = layout.guestbook;
+  if (!r) return;
+  drawImageFit('guestbook', r.x, r.y, r.w, r.h, {
+    shadow: { blur: 8, y: 4, color: 'rgba(0,0,0,.20)' }
+  });
+  // Warm edge lift when lamp is on — left side catches the ambient throw
+  if (state.lampOn) {
+    cx.save();
+    cx.globalCompositeOperation = 'screen';
+    cx.globalAlpha = 0.035;
+    cx.fillStyle = 'rgba(255,200,120,1)';
+    cx.fillRect(r.x, r.y, r.w * 0.45, r.h);
+    cx.restore();
+  }
+  // Subtle hover highlight
+  if (state.hover?.id === 'guestbook') {
+    cx.save();
+    cx.fillStyle = 'rgba(255,245,220,.06)';
+    cx.fillRect(r.x, r.y, r.w, r.h);
+    cx.restore();
+  }
 }
 
 function drawChair() {
@@ -3029,6 +3058,7 @@ function render(ts) {
   resetCtx(); drawTV();
   resetCtx(); drawTvCrtIntegrationPass();
   resetCtx(); drawTableAndProps();
+  resetCtx(); drawGuestbook();
   resetCtx(); drawCube();
   resetCtx(); drawReactiveLighting();
   resetCtx(); drawAtmosphere();
@@ -3344,7 +3374,7 @@ function hitTest(clientX, clientY) {
   if (DEBUG_LAYOUT) console.log(`hitTest: canvas px (${Math.round(x)}, ${Math.round(y)}) | rect w=${Math.round(rect.width)} left=${Math.round(rect.left)}`);
 
   // Specific objects first, then big background areas
-  const priority = ['tv', 'holo', 'lamp', 'clock', 'hifi', 'window'];
+  const priority = ['tv', 'holo', 'lamp', 'clock', 'hifi', 'window', 'guestbook'];
   for (const id of priority) {
     const h = hotspots.find(s => s.id === id);
     if (!h) continue;
@@ -3367,6 +3397,7 @@ setupUiControls({
   showLabel,
   applyTheme,
   onAudioInteract: ensureAudioContext,
+  openGuestbook,
 });
 
 state.toggleAdaptiveQuality = () => {
@@ -3412,7 +3443,36 @@ debugPanel = createDebugPanel(gfx, {
   getScaleGuides: () => scaleGuides,
   showLabel,
   getAudio: getAudioBuses,
+  getDebugTargets: () => debugTargets,
+  getDebugTarget: () => debugTarget,
+  setDebugTarget: (t) => { debugTarget = t; },
+  getDebugRect,
 });
+
+// ── Asset drag repositioning (debug layout mode only) ──
+{
+  let _drag = null;
+  canvas.addEventListener('mousedown', e => {
+    if (!gfx.debug || !DEBUG_LAYOUT) return;
+    const r = getDebugRect(debugTarget);
+    if (!r || r.w == null || r.h == null) return;
+    const cr = canvas.getBoundingClientRect();
+    const mx = (e.clientX - cr.left) * (RW / cr.width);
+    const my = (e.clientY - cr.top)  * (RH / cr.height);
+    if (mx < r.x || mx > r.x + r.w || my < r.y || my > r.y + r.h) return;
+    _drag = { ox: mx, oy: my, rx: r.x, ry: r.y, rect: r };
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!_drag) return;
+    const cr = canvas.getBoundingClientRect();
+    const mx = (e.clientX - cr.left) * (RW / cr.width);
+    const my = (e.clientY - cr.top)  * (RH / cr.height);
+    _drag.rect.x = Math.round(_drag.rx + mx - _drag.ox);
+    _drag.rect.y = Math.round(_drag.ry + my - _drag.oy);
+  });
+  document.addEventListener('mouseup', () => { _drag = null; });
+}
 
 // ── SNOW SYSTEM ───────────────────────────────────────
 function makeSnowLayer(count, vyMin, vyMax, rMin, rMax, aMin, aMax, wobble) {

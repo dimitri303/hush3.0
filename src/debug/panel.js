@@ -13,7 +13,7 @@ const DEFAULTS = {
   adaptiveQuality: true, qualityMode: '900p', supersampling: false, supersampleScale: 1.25,
   presenceToasts: true,
   sources: { city: true, window: true, tv: true, holo: true, hifi: true },
-  shadows: { chair: true, lamp: true, hifi: true, turntable: true, headphones: true, tv: true, table: true, mug: true, remote: true, books: true, holo: true },
+  shadows: { chair: true, lamp: true, hifi: true, turntable: true, headphones: true, tv: true, table: true, mug: true, remote: true, books: true, holo: true, guestbook: true },
   wraps: { chair: true, lamp: true, hifi: true, turntable: true, tv: true, books: true, mug: true, table: true, holo: true },
   materials: { chair: true, hifi: true, turntable: true, tv: true, table: true, mug: true, books: true, holo: true, floor: true },
   reflectionSources: { window: true, city: true, tv: true, holo: true, lamp: true, hifi: true },
@@ -38,7 +38,7 @@ const SCHEMA = [
       { label:'Contact', key:'contactStrength', min:0, max:1.5, step:0.01 },
       { label:'AO',      key:'aoStrength',      min:0, max:1.5, step:0.01 },
     ],
-    chips:[{ label:'Objects', obj:'shadows', keys:['chair','lamp','hifi','turntable','headphones','tv','table','mug','remote','books','holo'], labels:['Chair','Lamp','HiFi','TT','Phones','TV','Table','Mug','Remote','Books','Holo'] }],
+    chips:[{ label:'Objects', obj:'shadows', keys:['chair','lamp','hifi','turntable','headphones','tv','table','mug','remote','books','holo','guestbook'], labels:['Chair','Lamp','HiFi','TT','Phones','TV','Table','Mug','Remote','Books','Holo','Guestbook'] }],
   },
   {
     id:'atmos', label:'ATMOSPHERE', color:'#40ddb0',
@@ -142,6 +142,24 @@ const SCHEMA = [
 
 const AUDIO_DEFAULTS = { master: 0.85, music: 0.80, vinyl: 0.80, lightRain: 1.0 };
 
+const ASSET_LABELS = {
+  win:'Window', hifi:'HiFi Rack', rackDisplay:'Rack Display',
+  recordPlayer:'Record Player', recordSleeve:'Record Sleeve',
+  leftSpeaker:'Left Speaker', rightSpeaker:'Right Speaker',
+  tv:'Television', screen:'TV Screen', chair:'Chair', lamp:'Lamp',
+  table:'Table', mug:'Mug', remote:'Remote (disabled)', books:'Books',
+  cube:'Holocube', cubeGlow:'Cube Glow', moon:'Moon',
+  clock:'Clock', clockScreen:'Clock Screen', plant:'Plant', guestbook:'Guestbook',
+  lampMouth:'Lamp Mouth', lampTarget:'Lamp Target',
+  tvGlowOrigin:'TV Glow Origin', tvGlowSpill:'TV Glow Spill',
+  hifiGlowOrigin:'HiFi Glow Origin', hifiGlowSpill:'HiFi Glow Spill',
+  'hit.window':'Hit: Window', 'hit.hifi':'Hit: HiFi', 'hit.tv':'Hit: TV',
+  'hit.holo':'Hit: Holo', 'hit.lamp':'Hit: Lamp', 'hit.clock':'Hit: Clock',
+  'hit.guestbook':'Hit: Guestbook',
+  'focus.window':'Focus: Window', 'focus.hifi':'Focus: HiFi', 'focus.tv':'Focus: TV',
+  'focus.holo':'Focus: Holo', 'focus.lamp':'Focus: Lamp', 'focus.clock':'Focus: Clock',
+};
+
 function fmtVal(v, step) {
   if (step >= 1)    return Math.round(v).toString();
   if (step <= 0.001) return v.toFixed(3);
@@ -216,11 +234,61 @@ function injectStyles() {
 .gfx-export-btn:hover{background:rgba(80,160,100,.12);color:#90c8a0;}
 .gfx-export-status{font-size:9px;color:#506070;min-height:12px;}
 .gfx-audio-status{font-size:9px;color:#405060;letter-spacing:.5px;}
+.gfx-asset-sel{flex:1;min-width:0;background:rgba(10,6,22,.85);
+  border:1px solid rgba(120,70,200,.28);color:#b8c4dc;
+  font:inherit;font-size:10px;padding:2px 4px;outline:none;cursor:pointer;}
+.gfx-asset-sel:focus{border-color:rgba(155,95,255,.5);}
+.gfx-asset-num{flex:1;min-width:0;background:rgba(10,6,22,.85);
+  border:1px solid rgba(120,70,200,.28);color:#d0d8f0;
+  font:inherit;font-size:10px;padding:2px 5px;text-align:right;outline:none;
+  -moz-appearance:textfield;}
+.gfx-asset-num:focus{border-color:rgba(155,95,255,.5);}
+.gfx-asset-num::-webkit-inner-spin-button,.gfx-asset-num::-webkit-outer-spin-button{opacity:.35;}
+.gfx-asset-hint{font-size:9px;color:#303848;letter-spacing:.3px;line-height:1.4;}
 `;
   document.head.appendChild(s);
 }
 
-function buildHTML(gfx) {
+function buildAssetSection(deps) {
+  const targets = deps.getDebugTargets?.() || [];
+  const current = deps.getDebugTarget?.() || targets[0] || '';
+  const layoutTargets = targets.filter(t => !t.startsWith('hit.') && !t.startsWith('focus.'));
+  const hitTargets    = targets.filter(t => t.startsWith('hit.'));
+  const focusTargets  = targets.filter(t => t.startsWith('focus.'));
+  const opt = (t) => `<option value="${t}"${t === current ? ' selected' : ''}>${ASSET_LABELS[t] || t}</option>`;
+  return `
+    <div class="gfx-section">
+      <div class="gfx-sec-hdr" data-sid="asset">
+        <span class="gfx-sec-name" style="color:#f0c890">ASSET PLACEMENT</span>
+        <div class="gfx-sec-btns"><span class="gfx-chevron">▾</span></div>
+      </div>
+      <div class="gfx-sec-body" id="gfx-b-asset">
+        <div class="gfx-row">
+          <span class="gfx-lbl">Asset</span>
+          <select id="gfx-asset-sel" class="gfx-asset-sel">
+            <optgroup label="Layout">${layoutTargets.map(opt).join('')}</optgroup>
+            <optgroup label="Hotspot Hit">${hitTargets.map(opt).join('')}</optgroup>
+            <optgroup label="Hotspot Focus">${focusTargets.map(opt).join('')}</optgroup>
+          </select>
+        </div>
+        <div class="gfx-row">
+          <span class="gfx-lbl" style="width:18px">x</span>
+          <input type="number" id="gfx-asset-x" class="gfx-asset-num" step="1">
+          <span class="gfx-lbl" style="width:18px;margin-left:4px">y</span>
+          <input type="number" id="gfx-asset-y" class="gfx-asset-num" step="1">
+        </div>
+        <div class="gfx-row" id="gfx-asset-szrow">
+          <span class="gfx-lbl" style="width:18px">w</span>
+          <input type="number" id="gfx-asset-w" class="gfx-asset-num" step="1" min="1">
+          <span class="gfx-lbl" style="width:18px;margin-left:4px">h</span>
+          <input type="number" id="gfx-asset-h" class="gfx-asset-num" step="1" min="1">
+        </div>
+        <div class="gfx-row"><span class="gfx-asset-hint">Tab/dropdown · arrows nudge · Shift+arrows resize · Alt=10px · C copy · drag to move</span></div>
+      </div>
+    </div>`;
+}
+
+function buildHTML(gfx, deps) {
   const sections = SCHEMA.map(sec => {
     const previewBtn = sec.preview
       ? `<button class="gfx-preview-btn${gfx[sec.preview] ? ' on' : ''}" data-preview="${sec.preview}">preview</button>`
@@ -359,6 +427,8 @@ function buildHTML(gfx) {
       <div id="gfx-exp-status" class="gfx-export-status"></div>
     </div>`;
 
+  const assetSection = buildAssetSection(deps);
+
   return `
     <div class="gfx-hdr">
       <span class="gfx-title">GRAPHICS DEBUG</span>
@@ -366,6 +436,7 @@ function buildHTML(gfx) {
       <button id="gfx-close" class="gfx-hdr-btn">✕</button>
     </div>
     <div class="gfx-body">
+      ${assetSection}
       ${sections}
       ${qualitySection}
       ${audioSection}
@@ -394,6 +465,25 @@ function syncAllControls(panel, gfx) {
   panel.querySelectorAll('.gfx-preview-btn').forEach(btn => {
     btn.classList.toggle('on', !!gfx[btn.dataset.preview]);
   });
+}
+
+function syncAssetInputs(panel, deps) {
+  const current = deps.getDebugTarget?.();
+  const r = deps.getDebugRect?.(current);
+  const sel = panel.querySelector('#gfx-asset-sel');
+  if (sel && sel.value !== current) sel.value = current;
+  if (!r) return;
+  const set = (id, val) => {
+    const el = panel.querySelector('#' + id);
+    if (el && document.activeElement !== el && val != null)
+      el.value = Math.round(val);
+  };
+  set('gfx-asset-x', r.x);
+  set('gfx-asset-y', r.y);
+  set('gfx-asset-w', r.w);
+  set('gfx-asset-h', r.h);
+  const szRow = panel.querySelector('#gfx-asset-szrow');
+  if (szRow) szRow.style.display = r.w != null ? '' : 'none';
 }
 
 const EXPORT_SKIP = new Set([...PREVIEW_KEYS, 'debug', 'renderScale']);
@@ -428,7 +518,7 @@ export function createDebugPanel(gfx, deps) {
 
   const panel = document.createElement('div');
   panel.id = 'gfx-panel';
-  panel.innerHTML = buildHTML(gfx);
+  panel.innerHTML = buildHTML(gfx, deps);
   panel.style.display = 'none';
   document.body.appendChild(panel);
 
@@ -470,6 +560,18 @@ export function createDebugPanel(gfx, deps) {
       const valEl = panel.querySelector(`[data-audio-val="${ak}"]`);
       if (valEl) valEl.textContent = val.toFixed(2);
     }
+    // Asset number inputs
+    const nid = e.target.id;
+    if (nid === 'gfx-asset-x' || nid === 'gfx-asset-y' || nid === 'gfx-asset-w' || nid === 'gfx-asset-h') {
+      const val = parseInt(e.target.value, 10);
+      if (isNaN(val)) return;
+      const r = deps.getDebugRect?.(deps.getDebugTarget?.());
+      if (!r) return;
+      if (nid === 'gfx-asset-x') r.x = val;
+      if (nid === 'gfx-asset-y') r.y = val;
+      if (nid === 'gfx-asset-w' && r.w != null) r.w = Math.max(1, val);
+      if (nid === 'gfx-asset-h' && r.h != null) r.h = Math.max(1, val);
+    }
   });
 
   // ── Checkbox / radio change ───────────────────────────
@@ -481,6 +583,11 @@ export function createDebugPanel(gfx, deps) {
     if (e.target.name === 'qualityMode') {
       gfx.qualityMode = e.target.value;
       gfx.renderScale = deps.getRenderScale();
+    }
+    // Asset selector
+    if (e.target.id === 'gfx-asset-sel') {
+      deps.setDebugTarget?.(e.target.value);
+      syncAssetInputs(panel, deps);
     }
   });
 
@@ -600,6 +707,7 @@ export function createDebugPanel(gfx, deps) {
       syncAudioSlider('vinyl',     buses.vinylGain.gain.value);
       syncAudioSlider('lightRain', buses.lightRainGain.gain.value);
     }
+    syncAssetInputs(panel, deps);
   }
 
   return { sync };

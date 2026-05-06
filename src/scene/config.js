@@ -19,7 +19,7 @@ export function createLayout(RW, RH) {
     //rackKnobs: { x: 913, y: 705 },
     recordSleeve: { x: 523, y: 689, w: 79, h: 74 },
     lampMouth: {"x":462,"y":524},
-    lampTarget: { x: 506, y: 781 },
+    lampTarget: { x: 484, y: 665 },
     tvGlowOrigin: { x: 1378, y: 601 },
     tvGlowSpill: { x: 1111, y: 733 },
     hifiGlowOrigin: { x: 811, y: 699 },
@@ -30,7 +30,7 @@ export function createLayout(RW, RH) {
     plant: { x: 632, y: 556, w: 166, h: 113 },
     leftSpeaker:  { x: 536, y: 564, w: 140, h: 100 },
     rightSpeaker: { x: 1122, y: 564, w: 140, h: 100 },
-    guestbook:    { x: 1101, y: 887, w: 141, h: 126 },
+    guestbook:    { x: 1093, y: 876, w: 149, h: 133 },
   };
 }
 

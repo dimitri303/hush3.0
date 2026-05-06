@@ -17,6 +17,25 @@ import { createContactShadowPass } from './render/passes/contact-shadows.js';
 import { createDepthPolishPass } from './render/passes/depth-polish.js';
 import { setupUiControls } from './ui/controls.js';
 import { ensureAudioContext, syncAudioToState, getAudioBuses } from './audio/engine.js';
+import {
+  initCityFx, getCityFxNightFactor,
+  drawAnimatedCityBillboards, drawCityWindowLights, drawCityFxDebugOverlay,
+  cityFxSettings, billboardQuads, CITY_BILLBOARDS, cityFxState,
+  saveToStorage as saveCityFxToStorage, ensureLightsDensity,
+  resetBillboard, resetAllCityFx,
+  lightMasks, CITY_LIGHT_MASKS, resetMaskZones, invalidateLightCache,
+  cityDiag,
+} from './render/city-fx.js';
+import { initCityPanel } from './debug/city-panel.js';
+import {
+  cityClaritySettings, getAtmMult, getRefMult, getGlassMult, getDepthMult,
+  drawSkylineClarityPass, drawAtmosphereInfluence,
+  saveClaritySettings, resetClaritySettings,
+} from './render/city-clarity.js';
+import {
+  moonFxSettings, getMoonPos, drawMoonPathDebug,
+  saveMoonFxSettings, resetMoonFxSettings,
+} from './render/moon-fx.js';
 
 const VERSION = 'A2.3-CINEMATIC-VISUAL-PASS';
 const BUILD_STAMP = 'A2.3-CINEMATIC-VISUAL-PASS | 2026-04-28 19:27:56 UTC';
@@ -314,10 +333,10 @@ function beginSupersampledRender() {
 function endSupersampledRender(info) {
   visibleCtx.save();
   visibleCtx.setTransform(1, 0, 0, 1, 0, 0);
-  visibleCtx.clearRect(0, 0, RW, RH);
+  visibleCtx.clearRect(0, 0, canvas.width, canvas.height);
   visibleCtx.imageSmoothingEnabled = true;
   visibleCtx.imageSmoothingQuality = 'high';
-  visibleCtx.drawImage(renderCanvas, 0, 0, renderCanvas.width, renderCanvas.height, 0, 0, RW, RH);
+  visibleCtx.drawImage(renderCanvas, 0, 0, renderCanvas.width, renderCanvas.height, 0, 0, canvas.width, canvas.height);
   visibleCtx.restore();
   cx = visibleCtx;
 }
@@ -332,6 +351,7 @@ const UI = createUi();
 UI.clock.style.display = 'none'; // hidden by default; press C to show
 createPresenceToast(() => gfx.presenceToasts);
 initGuestbook();
+initCityFx(timeProfile);
 
 let SCALE = 1;
 let focusUiTimer = null;
@@ -595,7 +615,10 @@ function resize() {
   const sx = innerWidth / RW;
   const sy = innerHeight / RH;
   SCALE = Math.min(sx, sy);
-  canvas.style.width = `${RW * SCALE}px`;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = Math.round(RW * SCALE * dpr);
+  canvas.height = Math.round(RH * SCALE * dpr);
+  canvas.style.width  = `${RW * SCALE}px`;
   canvas.style.height = `${RH * SCALE}px`;
   applyFocusTransform(true);
 }
@@ -831,10 +854,10 @@ function drawWindowAnimation(x,y,w,h){
   cx.restore();
 }
 
-function drawRoomReflection(x,y,w,h){
+function drawRoomReflection(x,y,w,h, alphaMult=1){
   const tp=timeProfile();
   if(tp.night<0.3) return; // only visible at night
-  const alpha=tp.night*0.06;
+  const alpha=tp.night*0.06*alphaMult;
   cx.save(); cx.beginPath(); cx.rect(x,y,w,h); cx.clip();
   cx.globalCompositeOperation='screen';
   cx.globalAlpha=alpha;
@@ -909,10 +932,60 @@ function drawFogBanks(x,y,w,h,horizon){
   cx.restore();
 }
 
+function drawMoonArc(x, y, w, h, starA) {
+  const s = moonFxSettings;
+
+  // Debug path renders even when moon is invisible
+  if (s.showPath) drawMoonPathDebug(cx, x, y, w, h, state.currentMinutes);
+
+  if (!s.enabled) return;
+  const moonA = Math.min(starA * 1.4, 1) * s.opacity;
+  if (moonA < 0.005) return;
+
+  const { x: mx, y: my } = getMoonPos(state.currentMinutes);
+  const r     = layout.moon.w * 0.5 * s.sizeMult;
+  const openF = state.winAnim;
+
+  cx.save(); cx.beginPath(); cx.rect(x, y, w, h); cx.clip();
+
+  // Soft atmospheric glow — reduced when window closed (glass diffuses it)
+  const glowA = s.glow * moonA * (0.70 + 0.30 * openF);
+  if (glowA > 0.003) {
+    const haloR = r * 2.8;
+    const halo  = cx.createRadialGradient(mx, my, r * 0.4, mx, my, haloR);
+    halo.addColorStop(0, `rgba(200,215,240,${glowA.toFixed(3)})`);
+    halo.addColorStop(1, 'transparent');
+    cx.fillStyle = halo;
+    cx.fillRect(mx - haloR, my - haloR, haloR * 2, haloR * 2);
+  }
+
+  // Moon asset — screen blend; slightly clearer when window open
+  const imgAlpha = moonA * (0.88 + 0.12 * openF);
+  const img = images.moon;
+  if (img && img.complete && img.naturalWidth) {
+    cx.globalCompositeOperation = 'screen';
+    cx.globalAlpha = imgAlpha;
+    cx.drawImage(img, mx - r, my - r, r * 2, r * 2);
+    cx.globalAlpha = 1;
+  } else {
+    cx.fillStyle = `rgba(220,225,210,${(imgAlpha * 0.95).toFixed(3)})`;
+    cx.beginPath(); cx.arc(mx, my, r, 0, Math.PI * 2); cx.fill();
+  }
+
+  cx.globalCompositeOperation = 'source-over';
+  cx.restore();
+}
+
 function drawWindowView(dt) {
   const {x,y,w,h} = layout.win;
   const horizon = y + h*.72;
   const px = state.parallaxX; // -1..1
+
+  const _winAnim   = state.winAnim;
+  const _atmMult   = getAtmMult(_winAnim);
+  const _refMult   = getRefMult(_winAnim);
+  const _depthMult = getDepthMult(_winAnim);
+  const _glassMult = getGlassMult(_winAnim);
 
   cx.save();
   cx.beginPath();
@@ -937,40 +1010,17 @@ function drawWindowView(dt) {
     });
     cx.restore();
   }
-  if(starA>.01){
-    cx.save(); cx.beginPath(); cx.rect(x,y,w,h); cx.clip();
-    const moonA=clamp(starA*1.4,0,1);
-    const mx = layout.moon.x + layout.moon.w * 0.5;
-    const my = layout.moon.y + layout.moon.h * 0.5;
-    const r  = layout.moon.w * 0.5;
-
-    // Soft atmospheric halo behind the moon
-    const halo=cx.createRadialGradient(mx,my,r*.4,mx,my,r*2.8);
-    halo.addColorStop(0,`rgba(200,215,240,${moonA*.12})`);
-    halo.addColorStop(1,'transparent');
-    cx.fillStyle=halo; cx.fillRect(mx-r*3,my-r*3,r*6,r*6);
-
-    // Moon asset — 'screen' blend makes black background invisible
-    const img=images.moon;
-    if(img&&img.complete&&img.naturalWidth){
-      cx.globalCompositeOperation='screen';
-      cx.globalAlpha=moonA*.95;
-      cx.drawImage(img, mx-r, my-r, r*2, r*2);
-      cx.globalAlpha=1;
-    } else {
-      cx.fillStyle=`rgba(220,225,210,${moonA*.88})`;
-      cx.beginPath(); cx.arc(mx,my,r,0,Math.PI*2); cx.fill();
-    }
-
-    cx.globalCompositeOperation='source-over';
-    cx.restore();
-  }
+  drawMoonArc(x, y, w, h, starA);
 
   // City PNG asset — drawn over sky, stars show through transparent roofline
   drawCityAsset(x,y,w,h);
-  drawCityTimeAtmosphere(x,y,w,h,horizon);
+  if (!cityDiag.noAtmosphere) { cx.save(); cx.globalAlpha=_atmMult; drawCityTimeAtmosphere(x,y,w,h,horizon); cx.restore(); }
   drawNeonLife(x,y,w,h);
   drawDroneLights(x,y,w,h);
+
+  // City FX — window lights + billboard overlays (behind glass/rain)
+  drawCityWindowLights(cx, state.t);
+  drawAnimatedCityBillboards(cx, state.t, getCityFxNightFactor());
 
   // Elevated highway
   const roadY = y+h-16;
@@ -1008,37 +1058,39 @@ function drawWindowView(dt) {
   cx.restore();
 
   // Rain — layered depth system
-  if(state.weather.rain || state.weather.thunderstorm) drawRain(x,y,w,h);
+  if(!cityDiag.noAtmosphere && (state.weather.rain || state.weather.thunderstorm)) drawRain(x,y,w,h);
 
   // Snow
-  if(state.weather.snow) drawSnow(x,y,w,h);
+  if(!cityDiag.noAtmosphere && state.weather.snow) drawSnow(x,y,w,h);
 
   // Lightning flash
-  if(state.weather.thunderstorm){
+  if(!cityDiag.noAtmosphere && state.weather.thunderstorm){
     const pulse=.5+.5*Math.sin(state.t*12);
     if(pulse>.8){ cx.fillStyle=`rgba(220,235,255,${(pulse-.8)*1.8})`; cx.fillRect(x,y,w,h); }
   }
 
   // Glass reflections
-  cx.save(); cx.globalAlpha=.07;
-  for(let i=0;i<7;i++){
-    const gx=x+38+i*50;
-    const gg=cx.createLinearGradient(gx,y,gx+12,y+h);
-    gg.addColorStop(0,'rgba(255,200,255,.6)');
-    gg.addColorStop(.5,'rgba(200,180,255,.3)');
-    gg.addColorStop(1,'transparent');
-    cx.fillStyle=gg; cx.fillRect(gx,y,2,h);
+  if (!cityDiag.noAtmosphere) {
+    cx.save(); cx.globalAlpha=0.07*_glassMult;
+    for(let i=0;i<7;i++){
+      const gx=x+38+i*50;
+      const gg=cx.createLinearGradient(gx,y,gx+12,y+h);
+      gg.addColorStop(0,'rgba(255,200,255,.6)');
+      gg.addColorStop(.5,'rgba(200,180,255,.3)');
+      gg.addColorStop(1,'transparent');
+      cx.fillStyle=gg; cx.fillRect(gx,y,2,h);
+    }
+    cx.restore();
   }
-  cx.restore();
 
   // Fog banks between building layers
-  drawFogBanks(x,y,w,h,horizon);
+  if (!cityDiag.noAtmosphere) { cx.save(); cx.globalAlpha=_atmMult; drawFogBanks(x,y,w,h,horizon); cx.restore(); }
 
   // Helicopter with searchlight
   drawHelicopter(x,y,w,h);
 
   // Lightning full-scene flash
-  if(state.lightningFlash>0.01){
+  if(!cityDiag.noAtmosphere && state.lightningFlash>0.01){
     cx.save();
     cx.fillStyle=`rgba(220,235,255,${state.lightningFlash*.85})`;
     cx.fillRect(x,y,w,h);
@@ -1046,22 +1098,31 @@ function drawWindowView(dt) {
   }
 
   // Room reflection in glass at night
-  drawRoomReflection(x,y,w,h);
+  if (!cityDiag.noAtmosphere) drawRoomReflection(x,y,w,h,_refMult);
 
   // Glass pane — visible when closed, fades as window opens
-  drawWindowGlass(x,y,w,h);
+  if (!cityDiag.noAtmosphere) drawWindowGlass(x,y,w,h);
 
   // Glass rain droplets
-  drawGlassRainLayer(x,y,w,h);
+  if (!cityDiag.noAtmosphere) drawGlassRainLayer(x,y,w,h);
 
   // Condensation patches when window open
-  drawCondensation(x,y,w,h);
+  if (!cityDiag.noAtmosphere) drawCondensation(x,y,w,h);
 
   // Depth grade
-  drawCityDepthGrade(x,y,w,h,horizon);
+  if (!cityDiag.noAtmosphere) drawCityDepthGrade(x,y,w,h,horizon,_depthMult);
+
+  // Skyline clarity contrast punch (open window only)
+  drawSkylineClarityPass(cx,x,y,w,h,_winAnim);
+
+  // Debug: atmosphere influence distribution tint
+  drawAtmosphereInfluence(cx,x,y,w,h,_winAnim);
 
   // Window open/close animation overlay
   drawWindowAnimation(x,y,w,h);
+
+  // City FX debug outlines — drawn last so they overlay everything in the window
+  drawCityFxDebugOverlay(cx);
 
   cx.restore();
   cx.restore();
@@ -1130,12 +1191,96 @@ function drawCityAsset(x, y, w, h) {
   const sx = Math.max(0, Math.min(iw - sw, (iw - sw) * 0.5 - biasSrcPx + parallaxSrc));
   const sy = Math.max(0, Math.min(ih - sh, (ih - sh) * 0.5));
 
+  // Diagnostic: pixel-snap destination rect to integer coords to eliminate sub-pixel blur
+  const dx = cityDiag.pixelSnap ? Math.round(x) : x;
+  const dy = cityDiag.pixelSnap ? Math.round(y) : y;
+  const dw = cityDiag.pixelSnap ? Math.round(w) : w;
+  const dh = cityDiag.pixelSnap ? Math.round(h) : h;
+
   cx.save();
   cx.imageSmoothingEnabled = true;
   cx.imageSmoothingQuality = 'high';
-  cx.beginPath(); cx.rect(x, y, w, h); cx.clip();
-  cx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  cx.beginPath(); cx.rect(dx, dy, dw, dh); cx.clip();
+  cx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
   cx.restore();
+}
+
+// ── City sharpness diagnostics ────────────────────────────────────────────────
+
+function logCityRenderData() {
+  const img = images.cityNight;
+  if (!img || !img.complete || !img.naturalWidth) {
+    console.warn('[CityDebug] cityNight image not loaded');
+    return;
+  }
+  const { x: drawX, y: drawY, w: drawW, h: drawH } = layout.win;
+  console.table({
+    naturalWidth:       img.naturalWidth,
+    naturalHeight:      img.naturalHeight,
+    drawX,
+    drawY,
+    drawW,
+    drawH,
+    canvasWidth:        canvas.width,
+    canvasHeight:       canvas.height,
+    cssWidth:           canvas.clientWidth,
+    cssHeight:          canvas.clientHeight,
+    dpr:                window.devicePixelRatio,
+    browserZoomApprox:  window.outerWidth / window.innerWidth,
+  });
+}
+
+function checkCssScaling() {
+  const dpr = window.devicePixelRatio || 1;
+  const expectedW = Math.round(canvas.clientWidth  * dpr);
+  const expectedH = Math.round(canvas.clientHeight * dpr);
+  console.log('[CityDebug] CSS scaling check');
+  console.log('  canvas buffer :', canvas.width,        '×', canvas.height);
+  console.log('  canvas CSS    :', canvas.clientWidth,  '×', canvas.clientHeight);
+  console.log('  DPR           :', dpr);
+  console.log('  expected buf  :', expectedW,            '×', expectedH);
+  const wOk = canvas.width  === expectedW;
+  const hOk = canvas.height === expectedH;
+  if (!wOk || !hOk) {
+    console.warn(`  ⚠ MISMATCH  buffer ${canvas.width}×${canvas.height} ≠ expected ${expectedW}×${expectedH}`);
+  } else {
+    console.log('  ✓ canvas buffer matches clientSize × DPR');
+  }
+}
+
+// Draws the city PNG directly to visibleCtx, bypassing rcx and all post-process passes.
+// Destination rect uses the same transform logic as drawCityAsset so the city
+// appears in exactly the same place and size.
+function drawCityDirect() {
+  const img = images.cityNight;
+  if (!img || !img.complete || !img.naturalWidth) return;
+
+  const { x, y, w, h } = layout.win;
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const coverScale = Math.max(w / iw, h / ih);
+  const baseSw = w / coverScale;
+  const baseSh = h / coverScale;
+  const rawSw = baseSw / 0.94;
+  const rawSh = baseSh / 0.94;
+  const fit   = Math.min(iw / rawSw, ih / rawSh, 1);
+  const sw    = rawSw * fit;
+  const sh    = rawSh * fit;
+  const biasSrcPx   = w * 0.07 * (sw / w);
+  const parallaxSrc = state.parallaxX * 6 * (sw / w);
+  const srcX = Math.max(0, Math.min(iw - sw, (iw - sw) * 0.5 - biasSrcPx + parallaxSrc));
+  const srcY = Math.max(0, Math.min(ih - sh, (ih - sh) * 0.5));
+
+  // Map logical 1920×1080 coords to the DPR-sized canvas buffer
+  visibleCtx.save();
+  visibleCtx.setTransform(canvas.width / RW, 0, 0, canvas.height / RH, 0, 0);
+  visibleCtx.clearRect(0, 0, RW, RH);
+  visibleCtx.imageSmoothingEnabled = true;
+  visibleCtx.imageSmoothingQuality = 'high';
+  visibleCtx.beginPath();
+  visibleCtx.rect(x, y, w, h);
+  visibleCtx.clip();
+  visibleCtx.drawImage(img, srcX, srcY, sw, sh, x, y, w, h);
+  visibleCtx.restore();
 }
 
 function drawMegaCityBackdrop(x,y,w,h,horizon){
@@ -1438,7 +1583,7 @@ function drawGlassRainLayer(x,y,w,h){
   cx.restore();
 }
 
-function drawCityDepthGrade(x,y,w,h,horizon){
+function drawCityDepthGrade(x,y,w,h,horizon, bloomMult=1){
   const tp=timeProfile();
   cx.save(); cx.beginPath(); cx.rect(x,y,w,h); cx.clip();
   const base=cx.createLinearGradient(0,horizon-h*.18,0,y+h);
@@ -1447,6 +1592,7 @@ function drawCityDepthGrade(x,y,w,h,horizon){
   base.addColorStop(1,`rgba(8,4,18,${0.22+tp.night*.18})`);
   cx.fillStyle=base; cx.fillRect(x,y,w,h);
   cx.globalCompositeOperation='screen';
+  cx.globalAlpha=bloomMult;
   const bloom=cx.createRadialGradient(x+w*.5,horizon+h*.1,0,x+w*.5,horizon+h*.1,w*.7);
   bloom.addColorStop(0,`rgba(190,60,255,${0.08*tp.night+0.05*tp.sunset})`);
   bloom.addColorStop(0.45,`rgba(80,180,255,${0.04*tp.night+0.03*tp.sunset})`);
@@ -3194,6 +3340,7 @@ function render(ts) {
   }
 
   endSupersampledRender(ssInfo);
+  if (cityDiag.directTest) drawCityDirect();
   requestAnimationFrame(render);
 }
 
@@ -3447,6 +3594,30 @@ debugPanel = createDebugPanel(gfx, {
   getDebugTarget: () => debugTarget,
   setDebugTarget: (t) => { debugTarget = t; },
   getDebugRect,
+});
+
+initCityPanel({
+  settings:           cityFxSettings,
+  quads:              billboardQuads,
+  billboards:         CITY_BILLBOARDS,
+  fxState:            cityFxState,
+  saveToStorage:      saveCityFxToStorage,
+  getCityFxNightFactor,
+  ensureLightsDensity,
+  resetBillboard,
+  resetAllCityFx,
+  lightMasks,
+  resetMaskZones,
+  invalidateLightCache,
+  cityDiag,
+  logCityRenderData,
+  checkCssScaling,
+  claritySettings:    cityClaritySettings,
+  saveClaritySettings,
+  resetClaritySettings,
+  moonSettings:       moonFxSettings,
+  saveMoonFxSettings,
+  resetMoonFxSettings,
 });
 
 // ── Asset drag repositioning (debug layout mode only) ──

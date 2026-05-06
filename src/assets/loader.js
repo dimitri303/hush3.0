@@ -37,6 +37,7 @@ export function loadAssets(ui) {
       }
     };
     img.onerror = () => {
+      console.error(`[hush loader] failed to load: ${ASSET_DIR}${file}`);
       loadedAssets += 1;
       ui.loaderTxt.textContent = `MISSING ${file}`;
       if (loadedAssets === assetEntries.length) {

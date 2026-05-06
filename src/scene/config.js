@@ -46,7 +46,7 @@ export const hotspots = [
   {
     id: 'hifi',
     label: 'the hi-fi',
-    hit: { x: 641, y: 636, w: 440, h: 109 },
+    hit: { x: 762, y: 677, w: 229, h: 56 },
     focus: { x: 641, y: 635, w: 440, h: 111 },
     card: 'hifiUi',
     zoom: { s: 1.75, ax: 0.50, ay: 0.58 }
@@ -54,8 +54,8 @@ export const hotspots = [
   {
     id: 'tv',
     label: 'the television',
-    hit: { x: 1258, y: 485, w: 290, h: 206 },
-    focus: { x: 1258, y: 485, w: 290, h: 244 },
+    hit: { x: 1319, y: 538, w: 200, h: 145 },
+    focus: { x: 1316, y: 537, w: 205, h: 153 },
     card: 'tvUi',
     zoom: { s: 2.05, ax: 0.50, ay: 0.50 }
   },

@@ -16,7 +16,7 @@ import { createReflectionPass } from './render/passes/reflection.js';
 import { createContactShadowPass } from './render/passes/contact-shadows.js';
 import { createDepthPolishPass } from './render/passes/depth-polish.js';
 import { setupUiControls } from './ui/controls.js';
-import { ensureAudioContext, syncAudioToState, getAudioBuses } from './audio/engine.js';
+import { ensureAudioContext, syncAudioToState, getAudioBuses, getMusicAnalyser } from './audio/engine.js';
 import {
   initCityFx, getCityFxNightFactor,
   drawAnimatedCityBillboards, drawCityWindowLights, drawCityFxDebugOverlay,
@@ -36,6 +36,10 @@ import {
   moonFxSettings, getMoonPos, drawMoonPathDebug,
   saveMoonFxSettings, resetMoonFxSettings,
 } from './render/moon-fx.js';
+import {
+  speakerDrivers, DRIVER_LIST, readSpeakerEnergy,
+  drawSpeakerDrivers, drawSpeakerCalibOverlay, saveSpeakerDrivers,
+} from './render/speaker-drivers.js';
 
 const VERSION = 'A2.3-CINEMATIC-VISUAL-PASS';
 const BUILD_STAMP = 'A2.3-CINEMATIC-VISUAL-PASS | 2026-04-28 19:27:56 UTC';
@@ -150,6 +154,11 @@ const gfx = {
   transitioning: false,
   showShadowAnchors: false,
 };
+
+// Speaker driver calibration state
+let _speakerCalibMode   = false;
+let _speakerCalibActive = 0;
+let _speakerEnergy      = { bass: 0, treble: 0 };
 
 const THEMES = {
   classic: {
@@ -3261,6 +3270,7 @@ function render(ts) {
   updateClock(dt);
   updateParticles(dt);
   updateMicroMotion(dt);
+  _speakerEnergy = readSpeakerEnergy(getMusicAnalyser(), state.musicOn);
   if (themeTransition.active) themeTransition.t += dt;
   applyAdaptiveQuality(dt);
   if (cameraTransitionTimer > 0) {
@@ -3426,6 +3436,8 @@ function render(ts) {
   resetCtx(); drawDebugLayout();
   resetCtx(); drawScaleGuides();
   resetCtx(); drawGraphicsDebugOverlay();
+  resetCtx(); drawSpeakerDrivers(cx, _speakerEnergy);
+  if (_speakerCalibMode) { resetCtx(); drawSpeakerCalibOverlay(cx, _speakerCalibActive, _speakerEnergy); }
 
   if (state.labelHold > 0) {
     state.labelHold -= dt;
@@ -3759,10 +3771,62 @@ const snowFlakes = [
 
 // C key — toggle HTML clock overlay (off by default; physical clock is primary)
 window.addEventListener('keydown', (e) => {
-  if ((e.key === 'c' || e.key === 'C') && !DEBUG_LAYOUT && !e.ctrlKey && !e.metaKey) {
+  if ((e.key === 'c' || e.key === 'C') && !DEBUG_LAYOUT && !e.ctrlKey && !e.metaKey && !_speakerCalibMode) {
     const visible = UI.clock.style.display !== 'none';
     UI.clock.style.display = visible ? 'none' : '';
     showLabel(visible ? '[ CLOCK HIDDEN ]' : '[ CLOCK SHOWN ]', '#7de8ff', 1.1);
+  }
+});
+
+// W key — speaker driver calibration mode
+window.addEventListener('keydown', (e) => {
+  // Toggle calibration — skip if user is typing in an input or debug layout is active
+  if ((e.key === 'w' || e.key === 'W') && !e.ctrlKey && !e.metaKey && !e.shiftKey && !DEBUG_LAYOUT) {
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    _speakerCalibMode = !_speakerCalibMode;
+    e.preventDefault();
+    return;
+  }
+
+  // All remaining controls only fire inside calibration mode
+  if (!_speakerCalibMode || DEBUG_LAYOUT) return;
+
+  const d    = DRIVER_LIST[_speakerCalibActive];
+  const conf = speakerDrivers[d.side][d.key];
+  const step = e.altKey ? 10 : 1;
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    _speakerCalibActive = (_speakerCalibActive + 1) % DRIVER_LIST.length;
+    return;
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    _speakerCalibMode = false;
+    return;
+  }
+  if (e.key === 'ArrowLeft'  && !e.shiftKey) { e.preventDefault(); conf.x -= step; return; }
+  if (e.key === 'ArrowRight' && !e.shiftKey) { e.preventDefault(); conf.x += step; return; }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (e.shiftKey) conf.r = Math.max(2, conf.r - (e.altKey ? 5 : 1));
+    else            conf.y -= step;
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (e.shiftKey) conf.r = Math.min(80, conf.r + (e.altKey ? 5 : 1));
+    else            conf.y += step;
+    return;
+  }
+  if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey) {
+    e.preventDefault();
+    const text = JSON.stringify(speakerDrivers, null, 2);
+    console.log('[speaker drivers]\n' + text);
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text);
+    saveSpeakerDrivers();
+    return;
   }
 });
 

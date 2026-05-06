@@ -224,3 +224,20 @@ export function getAudioBuses() {
   if (!actx) return null;
   return { masterBus, musicBus, weatherBus, cityBus, cyberBus, vinylGain, lightRainGain };
 }
+
+// ── Music analyser tap (speaker visualiser) ───────────────────────
+// Connects a parallel AnalyserNode to musicBus on first call.
+// Does not interrupt the signal chain — purely a read tap.
+
+let _musicAnalyser = null;
+
+export function getMusicAnalyser() {
+  if (!actx || !musicBus) return null;
+  if (!_musicAnalyser) {
+    _musicAnalyser = actx.createAnalyser();
+    _musicAnalyser.fftSize               = 1024;
+    _musicAnalyser.smoothingTimeConstant = 0.72;  // lower than masterBus smoothing so treble transients survive
+    musicBus.connect(_musicAnalyser);  // parallel tap — playback unaffected
+  }
+  return _musicAnalyser;
+}

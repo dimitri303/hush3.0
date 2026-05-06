@@ -148,6 +148,7 @@ const gfx = {
   },
   presenceToasts: true,
   transitioning: false,
+  showShadowAnchors: false,
 };
 
 const THEMES = {
@@ -543,6 +544,24 @@ let _gradWinEdge      = null; // drawWindowGlass — edge darkening radial
 let _gradWinSheen     = null; // drawWindowGlass — diagonal highlight
 let _gradWinTop       = null; // drawWindowGlass — top neon edge
 let _gradHifiDisplay  = null; // drawHifiRack — display panel tint
+// drawTvCrtIntegrationPass
+let _gradCrtGlass     = null;
+let _gradCrtEdge      = null;
+let _gradTvSpillGlow  = null;
+let _crtScanPattern   = null;
+// drawWindowGlassRichnessPass
+let _gradWinRichLamp  = null;
+let _gradWinRichTv    = null;
+let _gradWinRichTop   = null;
+let _gradWinRichBtm   = null;
+// drawFloorAndObjectPolishPass
+let _gradTableSheen   = null;
+// drawMicroLifePass — pre-built colour strings for dust mote alpha (0.000–0.046, step 0.001)
+const _dustAlphaStrs = (() => {
+  const a = [];
+  for (let i = 0; i <= 46; i++) a.push(`rgba(255,212,148,${(i / 1000).toFixed(3)})`);
+  return a;
+})();
 
 // ── TEMP LAYOUT DEBUGGER ──────────────────────────────
 // Set to false when the scene layout is locked.
@@ -734,9 +753,15 @@ function updateClock(dt) {
   }
 }
 
+const _TM_KEYS = ['day', 'sunset', 'night'];
 function dominantTimeMode() {
-  const weights = state.timeBlend;
-  return Object.entries(weights).sort((a, b) => b[1] - a[1])[0][0];
+  const w = state.timeBlend;
+  let best = _TM_KEYS[0], bestV = w[best];
+  for (let i = 1; i < _TM_KEYS.length; i++) {
+    const v = w[_TM_KEYS[i]];
+    if (v > bestV) { best = _TM_KEYS[i]; bestV = v; }
+  }
+  return best;
 }
 
 function skyPalette() {
@@ -2274,6 +2299,51 @@ function drawDebugLayout() {
   cx.restore();
 }
 
+function drawShadowAnchorDebug() {
+  if (!gfx.showShadowAnchors || !gfx.debug) return;
+  cx.save();
+  cx.font = 'bold 9px monospace';
+  cx.textAlign = 'left';
+
+  const anchors = [];
+  if (layout.chair) {
+    const r = layout.chair;
+    const chx = r.x + r.w * 0.50, chy = r.y + r.h * 0.68;
+    anchors.push({ x: chx,       y: chy + 9, label: 'chair-ao',  col: 'rgba(255,160,80,0.9)'  });
+    anchors.push({ x: chx,       y: chy,     label: 'chair-a',   col: 'rgba(255,200,100,0.9)' });
+    anchors.push({ x: chx + 125, y: chy - 37,label: 'chair-b',   col: 'rgba(255,200,100,0.9)' });
+  }
+  if (layout.lamp) {
+    const r = layout.lamp;
+    const lampX = r.x + r.w * 0.50, lampY = r.y + r.h * 0.97;
+    anchors.push({ x: lampX, y: lampY,     label: 'lamp-a', col: 'rgba(120,220,255,0.9)' });
+    anchors.push({ x: lampX, y: lampY + 6, label: 'lamp-b', col: 'rgba(120,220,255,0.9)' });
+  }
+  if (layout.hifi) {
+    const r = layout.hifi;
+    const hx = r.x + r.w * 0.50;
+    anchors.push({ x: hx, y: r.y + r.h * 0.94, label: 'hifi-ao', col: 'rgba(160,255,120,0.9)' });
+    anchors.push({ x: hx, y: r.y + r.h * 0.92, label: 'hifi-a',  col: 'rgba(180,255,140,0.9)' });
+  }
+
+  for (const a of anchors) {
+    cx.strokeStyle = a.col;
+    cx.fillStyle   = a.col;
+    cx.lineWidth   = 1;
+    cx.beginPath();
+    cx.arc(a.x, a.y, 4, 0, Math.PI * 2);
+    cx.stroke();
+    cx.globalAlpha = 0.25;
+    cx.fill();
+    cx.globalAlpha = 0.85;
+    cx.fillStyle   = a.col;
+    cx.fillText(a.label, a.x + 7, a.y + 3);
+    cx.globalAlpha = 1;
+  }
+
+  cx.restore();
+}
+
 function drawLamp() {
   drawImageFit('lamp', layout.lamp.x, layout.lamp.y, layout.lamp.w, layout.lamp.h, { shadow: { blur: 18, y: 8, color: 'rgba(0,0,0,.35)' } });
   if (!state.lampOn) return;
@@ -2783,23 +2853,31 @@ function drawTvCrtIntegrationPass() {
 
   // Gentle convex glass sheen.
   cx.globalCompositeOperation = 'screen';
-  const glass = cx.createRadialGradient(
-    r.x + r.w * 0.34, r.y + r.h * 0.22, 0,
-    r.x + r.w * 0.34, r.y + r.h * 0.22, r.w * 0.95
-  );
-  glass.addColorStop(0, 'rgba(255,255,255,0.105)');
-  glass.addColorStop(0.28, 'rgba(160,220,255,0.040)');
-  glass.addColorStop(1, 'rgba(0,0,0,0)');
-  cx.fillStyle = glass;
+  if (!_gradCrtGlass) {
+    _gradCrtGlass = cx.createRadialGradient(
+      r.x + r.w * 0.34, r.y + r.h * 0.22, 0,
+      r.x + r.w * 0.34, r.y + r.h * 0.22, r.w * 0.95
+    );
+    _gradCrtGlass.addColorStop(0, 'rgba(255,255,255,0.105)');
+    _gradCrtGlass.addColorStop(0.28, 'rgba(160,220,255,0.040)');
+    _gradCrtGlass.addColorStop(1, 'rgba(0,0,0,0)');
+  }
+  cx.fillStyle = _gradCrtGlass;
   cx.fillRect(r.x, r.y, r.w, r.h);
 
-  // CRT scanlines.
+  // CRT scanlines — single fillRect with a cached 1×3 repeat pattern.
   cx.globalCompositeOperation = 'source-over';
   cx.globalAlpha = 0.16;
-  cx.fillStyle = 'rgba(0,0,0,1)';
-  for (let y = r.y; y < r.y + r.h; y += 3) {
-    cx.fillRect(r.x, y, r.w, 1);
+  if (!_crtScanPattern) {
+    const pc = document.createElement('canvas');
+    pc.width = 1; pc.height = 3;
+    const pc2 = pc.getContext('2d');
+    pc2.fillStyle = '#000';
+    pc2.fillRect(0, 0, 1, 1);
+    _crtScanPattern = cx.createPattern(pc, 'repeat');
   }
+  cx.fillStyle = _crtScanPattern;
+  cx.fillRect(r.x, r.y, r.w, r.h);
 
   // Subtle rolling light band.
   cx.globalAlpha = 0.08;
@@ -2815,13 +2893,15 @@ function drawTvCrtIntegrationPass() {
   // Darkened tube edges, so video feels inside glass.
   cx.globalAlpha = 1;
   cx.globalCompositeOperation = 'multiply';
-  const edge = cx.createRadialGradient(
-    r.x + r.w * 0.5, r.y + r.h * 0.5, r.h * 0.25,
-    r.x + r.w * 0.5, r.y + r.h * 0.5, r.w * 0.78
-  );
-  edge.addColorStop(0, 'rgba(255,255,255,0)');
-  edge.addColorStop(1, 'rgba(0,0,0,0.36)');
-  cx.fillStyle = edge;
+  if (!_gradCrtEdge) {
+    _gradCrtEdge = cx.createRadialGradient(
+      r.x + r.w * 0.5, r.y + r.h * 0.5, r.h * 0.25,
+      r.x + r.w * 0.5, r.y + r.h * 0.5, r.w * 0.78
+    );
+    _gradCrtEdge.addColorStop(0, 'rgba(255,255,255,0)');
+    _gradCrtEdge.addColorStop(1, 'rgba(0,0,0,0.36)');
+  }
+  cx.fillStyle = _gradCrtEdge;
   cx.fillRect(r.x, r.y, r.w, r.h);
 
   cx.restore();
@@ -2833,11 +2913,13 @@ function drawTvCrtIntegrationPass() {
     const spillR = Math.hypot(gs.x - go.x, gs.y - go.y) * 1.6;
     cx.save();
     cx.globalCompositeOperation = 'screen';
-    const glow = cx.createRadialGradient(go.x, go.y, 4, gs.x, gs.y, spillR);
-    glow.addColorStop(0,    'rgba(120,190,255,0.13)');
-    glow.addColorStop(0.45, 'rgba(120,90,255,0.055)');
-    glow.addColorStop(1,    'rgba(0,0,0,0)');
-    cx.fillStyle = glow;
+    if (!_gradTvSpillGlow) {
+      _gradTvSpillGlow = cx.createRadialGradient(go.x, go.y, 4, gs.x, gs.y, spillR);
+      _gradTvSpillGlow.addColorStop(0,    'rgba(120,190,255,0.13)');
+      _gradTvSpillGlow.addColorStop(0.45, 'rgba(120,90,255,0.055)');
+      _gradTvSpillGlow.addColorStop(1,    'rgba(0,0,0,0)');
+    }
+    cx.fillStyle = _gradTvSpillGlow;
     cx.fillRect(go.x - spillR, go.y - spillR * 0.5, spillR * 2, spillR * 2);
     cx.restore();
 
@@ -2871,39 +2953,47 @@ function drawWindowGlassRichnessPass() {
 
   // Interior reflection hints: lamp on left, TV on right.
   if (state.lampOn) {
-    const lamp = cx.createRadialGradient(
-      r.x + r.w * 0.13, r.y + r.h * 0.68, 0,
-      r.x + r.w * 0.13, r.y + r.h * 0.68, r.w * 0.24
-    );
-    lamp.addColorStop(0, 'rgba(255,190,105,0.075)');
-    lamp.addColorStop(1, 'rgba(0,0,0,0)');
-    cx.fillStyle = lamp;
+    if (!_gradWinRichLamp) {
+      _gradWinRichLamp = cx.createRadialGradient(
+        r.x + r.w * 0.13, r.y + r.h * 0.68, 0,
+        r.x + r.w * 0.13, r.y + r.h * 0.68, r.w * 0.24
+      );
+      _gradWinRichLamp.addColorStop(0, 'rgba(255,190,105,0.075)');
+      _gradWinRichLamp.addColorStop(1, 'rgba(0,0,0,0)');
+    }
+    cx.fillStyle = _gradWinRichLamp;
     cx.fillRect(r.x, r.y, r.w, r.h);
   }
 
   if (state.tvOn) {
-    const tv = cx.createRadialGradient(
-      r.x + r.w * 0.83, r.y + r.h * 0.60, 0,
-      r.x + r.w * 0.83, r.y + r.h * 0.60, r.w * 0.20
-    );
-    tv.addColorStop(0, 'rgba(120,200,255,0.055)');
-    tv.addColorStop(1, 'rgba(0,0,0,0)');
-    cx.fillStyle = tv;
+    if (!_gradWinRichTv) {
+      _gradWinRichTv = cx.createRadialGradient(
+        r.x + r.w * 0.83, r.y + r.h * 0.60, 0,
+        r.x + r.w * 0.83, r.y + r.h * 0.60, r.w * 0.20
+      );
+      _gradWinRichTv.addColorStop(0, 'rgba(120,200,255,0.055)');
+      _gradWinRichTv.addColorStop(1, 'rgba(0,0,0,0)');
+    }
+    cx.fillStyle = _gradWinRichTv;
     cx.fillRect(r.x, r.y, r.w, r.h);
   }
 
   // Soft top/bottom glass thickness.
   cx.globalCompositeOperation = 'source-over';
-  const top = cx.createLinearGradient(0, r.y, 0, r.y + r.h * 0.16);
-  top.addColorStop(0, 'rgba(255,255,255,0.09)');
-  top.addColorStop(1, 'rgba(255,255,255,0)');
-  cx.fillStyle = top;
+  if (!_gradWinRichTop) {
+    _gradWinRichTop = cx.createLinearGradient(0, r.y, 0, r.y + r.h * 0.16);
+    _gradWinRichTop.addColorStop(0, 'rgba(255,255,255,0.09)');
+    _gradWinRichTop.addColorStop(1, 'rgba(255,255,255,0)');
+  }
+  cx.fillStyle = _gradWinRichTop;
   cx.fillRect(r.x, r.y, r.w, r.h * 0.16);
 
-  const bottom = cx.createLinearGradient(0, r.y + r.h * 0.78, 0, r.y + r.h);
-  bottom.addColorStop(0, 'rgba(0,0,0,0)');
-  bottom.addColorStop(1, 'rgba(0,0,0,0.14)');
-  cx.fillStyle = bottom;
+  if (!_gradWinRichBtm) {
+    _gradWinRichBtm = cx.createLinearGradient(0, r.y + r.h * 0.78, 0, r.y + r.h);
+    _gradWinRichBtm.addColorStop(0, 'rgba(0,0,0,0)');
+    _gradWinRichBtm.addColorStop(1, 'rgba(0,0,0,0.14)');
+  }
+  cx.fillStyle = _gradWinRichBtm;
   cx.fillRect(r.x, r.y + r.h * 0.78, r.w, r.h * 0.22);
 
   cx.restore();
@@ -2938,12 +3028,14 @@ function drawFloorAndObjectPolishPass() {
     cx.rect(r.x + r.w * 0.08, r.y + r.h * 0.20, r.w * 0.84, r.h * 0.28);
     cx.clip();
 
-    const sheen = cx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h * 0.32);
-    sheen.addColorStop(0, 'rgba(255,255,255,0)');
-    sheen.addColorStop(0.40, 'rgba(255,170,255,0.055)');
-    sheen.addColorStop(0.68, 'rgba(130,225,255,0.052)');
-    sheen.addColorStop(1, 'rgba(255,255,255,0)');
-    cx.fillStyle = sheen;
+    if (!_gradTableSheen) {
+      _gradTableSheen = cx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h * 0.32);
+      _gradTableSheen.addColorStop(0, 'rgba(255,255,255,0)');
+      _gradTableSheen.addColorStop(0.40, 'rgba(255,170,255,0.055)');
+      _gradTableSheen.addColorStop(0.68, 'rgba(130,225,255,0.052)');
+      _gradTableSheen.addColorStop(1, 'rgba(255,255,255,0)');
+    }
+    cx.fillStyle = _gradTableSheen;
     cx.fillRect(r.x, r.y, r.w, r.h * 0.44);
 
     // A tiny animated sparkle line, almost invisible.
@@ -3066,7 +3158,7 @@ function drawMicroLifePass() {
       const alpha     = edgeFade * depthFade * twinkle * 0.046;
       if (alpha < 0.003) continue;
 
-      cx.fillStyle = `rgba(255,212,148,${alpha.toFixed(3)})`;
+      cx.fillStyle = _dustAlphaStrs[Math.min(Math.round(alpha * 1000), 46)];
       cx.beginPath();
       cx.arc(mpx, mpy, m.r, 0, Math.PI * 2);
       cx.fill();
@@ -3223,6 +3315,7 @@ function render(ts) {
     cx.restore();
   } else {
     resetCtx(); compositeContactShadows(); // [1] shadowCanvas → rcx (multiply)
+    drawShadowAnchorDebug();
   }
 
   // Atmosphere pass — after shadows, before bloom

@@ -12,6 +12,7 @@ const DEFAULTS = {
   depthPolish: true, depthStrength: 0.32, backgroundSoftness: 0.20, foregroundSoftness: 0.14, midgroundClarity: 0.18, depthVignetteStrength: 0.16,
   adaptiveQuality: true, qualityMode: '900p', supersampling: false, supersampleScale: 1.25,
   presenceToasts: true,
+  showShadowAnchors: false,
   sources: { city: true, window: true, tv: true, holo: true, hifi: true },
   shadows: { chair: true, lamp: true, hifi: true, turntable: true, headphones: true, tv: true, table: true, mug: true, remote: true, books: true, holo: true, guestbook: true },
   wraps: { chair: true, lamp: true, hifi: true, turntable: true, tv: true, books: true, mug: true, table: true, holo: true },
@@ -37,6 +38,9 @@ const SCHEMA = [
     sliders:[
       { label:'Contact', key:'contactStrength', min:0, max:1.5, step:0.01 },
       { label:'AO',      key:'aoStrength',      min:0, max:1.5, step:0.01 },
+    ],
+    toggles:[
+      { label:'Anchor debug', key:'showShadowAnchors' },
     ],
     chips:[{ label:'Objects', obj:'shadows', keys:['chair','lamp','hifi','turntable','headphones','tv','table','mug','remote','books','holo','guestbook'], labels:['Chair','Lamp','HiFi','TT','Phones','TV','Table','Mug','Remote','Books','Holo','Guestbook'] }],
   },

@@ -47,18 +47,25 @@ export function createContactShadowPass(deps) {
     if (!gfx.contactShadows && !gfx.contactPreview) return;
     const sh = gfx.shadows;
 
-    if (sh.chair) {
-      drawShadowEllipse(sx, 380, 908, 520, 68, 0.08 * gfx.aoStrength, 36);
-      drawAngledContactShadow(sx, 380, 902, 350, 82, -0.08, 0.34, 0.15);
-      drawAngledContactShadow(sx, 505, 865, 220, 46, -0.04, 0.22, 0.10);
+    if (sh.chair && layout.chair) {
+      const r = layout.chair;
+      const chx = r.x + r.w * 0.50;
+      const chy = r.y + r.h * 0.68;
+      drawShadowEllipse(sx, chx, chy + 9, 520, 68, 0.08 * gfx.aoStrength, 36);
+      drawAngledContactShadow(sx, chx, chy, 350, 82, -0.08, 0.34, 0.15);
+      drawAngledContactShadow(sx, chx + 125, chy - 37, 220, 46, -0.04, 0.22, 0.10);
     }
-    if (sh.lamp) {
-      drawContactShadow(sx, 490, 694, 105, 30, 0.24, 0.09);
-      drawContactShadow(sx, 535, 742, 140, 34, 0.16, 0.07);
+    if (sh.lamp && layout.lamp) {
+      const r = layout.lamp;
+      const lampX = r.x + r.w * 0.50;
+      const lampY = r.y + r.h * 0.97;
+      drawContactShadow(sx, lampX, lampY,     r.w * 0.52, 30, 0.24, 0.09);
+      drawContactShadow(sx, lampX, lampY + 6, r.w * 0.72, 34, 0.16, 0.07);
     }
-    if (sh.hifi) {
-      drawShadowEllipse(sx, 825, 748, 920, 52, 0.07 * gfx.aoStrength, 36);
-      drawAngledContactShadow(sx, 825, 744, 740, 54, 0.00, 0.32, 0.14);
+    if (sh.hifi && layout.hifi) {
+      const r = layout.hifi;
+      drawShadowEllipse(sx, r.x + r.w * 0.50, r.y + r.h * 0.94, r.w * 0.88, 52, 0.07 * gfx.aoStrength, 36);
+      drawAngledContactShadow(sx, r.x + r.w * 0.50, r.y + r.h * 0.92, r.w * 0.71, 54, 0.00, 0.32, 0.14);
     }
     if (sh.turntable && layout.recordPlayer) {
       const r = layout.recordPlayer;
